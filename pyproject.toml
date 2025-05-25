@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chessimg2pos"
+version = "0.1.0"
+description = "Recognize chess positions from board images using deep learning"
+readme = "README.md"
+license = { file = "LICENCE" }
+authors = [{ name = "Marco Di Ciò", email = "marcodicio.md@gmail.com" }]
+requires-python = ">=3.8"
+dependencies = [
+  "torch",
+  "torchvision",
+  "numpy",
+  "matplotlib",
+  "Pillow",
+  "pandas"
+]
+
+[project.urls]
+Homepage = "https://github.com/mdicio/chessimg2pos"
+
+[tool.setuptools.packages.find]
+where = ["src"]

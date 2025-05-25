@@ -6,22 +6,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image
-from chessboard_image import get_chessboard_tiles
-from chessclassifier import ChessPieceClassifier
+from .chessboard_image import get_chessboard_tiles
+from .chessclassifier import ChessPieceClassifier
 from matplotlib.gridspec import GridSpec
-from chessimg2pos.src.utils import compressed_fen
+from .utils import compressed_fen
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-from chessdataset import create_image_transforms
+from .chessdataset import create_image_transforms
 
-
-class ImprovedChessPositionPredictor:
+class ChessPositionPredictor:
     """An improved class to predict chess positions from images with better consistency"""
 
-    def __init__(self, model_path, fen_chars="1PNBRQKpnbrqk", use_grayscale=True, verbose=True):
+    def __init__(self, model_path, fen_chars="1PNBRQKpnbrqk", use_grayscale=True, verbose=False):
         """Initialize the predictor with a trained model
 
         Args:

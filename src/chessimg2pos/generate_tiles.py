@@ -8,23 +8,18 @@ import os
 from glob import glob
 
 import numpy as np
-from chessboard_image import get_chessboard_tiles
+from .chessboard_image import get_chessboard_tiles
 
 
 def _img_filename_prefix(chessboard_img_path):
-    """part of the image filename that shows which piece is on which square:
-    RRqpBnNr-QKPkrQPK-PpbQnNB1-nRRBpNpk-Nqprrpqp-kKKbNBPP-kQnrpkrn-BKRqbbBp
     """
-    # print("img prefix", chessboard_img_path.split("/")[3][:-4])
+    Extracts the piece layout prefix from a filename like:
+    'rnbqkbnr-pppppppp-8-8-8-8-PPPPPPPP-RNBQKBNR.png'
+    """
+    filename = os.path.basename(chessboard_img_path)  # gets just the file name
+    fen_like_part = filename[:-4]  # strip ".png"
+    return fen_like_part  # will be split later into 8 parts using "-"
 
-    return chessboard_img_path.split("/")[3][:-4]
-
-# def _img_sub_dir(chessboard_img_path, tiles_dir):
-#     """The sub-directory where the chessboard tile images will be saved"""
-#     sub_dir = chessboard_img_path.split("/")[3]
-#     print("subdir 1", sub_dir)
-#     print("subdir 2", os.path.join(tiles_dir, sub_dir))
-#     return os.path.join(tiles_dir, sub_dir)
 
 def _img_sub_dir(chessboard_img_path, tiles_dir):
     """The sub-directory where the chessboard tile images will be saved"""
@@ -34,20 +29,6 @@ def _img_sub_dir(chessboard_img_path, tiles_dir):
     # print("subdir 2", os.path.join(tiles_dir, sub_dir))
     return os.path.join(tiles_dir, sub_dir)
 
-def _img_save_dir(chessboard_img_path, tiles_dir):
-    """The directory within the sub-directory that will contain the
-    tile images
-    """
-    return _img_sub_dir(chessboard_img_path, tiles_dir)
-
-    # print("imgdir1", os.path.join(
-    #     _img_sub_dir(chessboard_img_path, tiles_dir),
-    #     _img_filename_prefix(chessboard_img_path),
-    # ))
-    # return os.path.join(
-    #     _img_sub_dir(chessboard_img_path, tiles_dir),
-    #     _img_filename_prefix(chessboard_img_path),
-    # )
 
 def save_tiles(tiles, chessboard_img_path, tiles_dir):
     """Saves all 64 tiles as 32x32 PNG files with this naming convention:
@@ -59,11 +40,13 @@ def save_tiles(tiles, chessboard_img_path, tiles_dir):
     sub_dir = _img_sub_dir(chessboard_img_path, tiles_dir)
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
-    img_save_dir = _img_save_dir(chessboard_img_path, tiles_dir)
+    img_save_dir = _img_sub_dir(chessboard_img_path, tiles_dir)
     # print("\tSaving tiles to {}\n".format(img_save_dir))
     if not os.path.exists(img_save_dir):
         os.makedirs(img_save_dir)
+        
     piece_positions = _img_filename_prefix(chessboard_img_path).split("-")
+    #`print("piece_positions", piece_positions)
     files = "abcdefgh"
     for i in range(64):
         piece = piece_positions[math.floor(i / 8)][i % 8]
@@ -87,8 +70,8 @@ def generate_tiles_from_all_chessboards(chessboards_dir, tiles_dir, use_grayscal
     num_skipped = 0
     num_failed = 0
     for i, chessboard_img_path in enumerate(chessboard_img_filenames):
-        print("%3d/%d %s" % (i + 1, num_chessboards, chessboard_img_path))
-        img_save_dir = _img_save_dir(chessboard_img_path, tiles_dir)
+        # print("%3d/%d %s" % (i + 1, num_chessboards, chessboard_img_path))
+        img_save_dir = _img_sub_dir(chessboard_img_path, tiles_dir)
         if os.path.exists(img_save_dir) and not overwrite:
             print("\tIgnoring existing {}\n".format(img_save_dir))
             num_skipped += 1

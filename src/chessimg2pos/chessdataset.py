@@ -16,6 +16,12 @@ class ChessTileDataset(Dataset):
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
         piece_type = image_path[-5]
+
+
+        if piece_type not in self.fen_chars:
+            print("piece not in fen", piece_type)
+            print("image_path", image_path)
+        # print(piece_type)
         assert piece_type in self.fen_chars
         label = self.fen_chars.index(piece_type)
 

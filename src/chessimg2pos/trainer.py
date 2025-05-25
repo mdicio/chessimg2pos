@@ -5,10 +5,8 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-from chessclassifier import ChessPieceClassifier
+from .chessclassifier import ChessPieceClassifier
 from torch.utils.data import DataLoader
-from generate_tiles import _img_save_dir, save_tiles
-from chessboard_image import get_chessboard_tiles
 import glob
 
 # Set up logging
@@ -17,9 +15,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from chessclassifier import ChessPieceClassifier
-from chessdataset import ChessTileDataset, create_image_transforms
-from generate_tiles import generate_tiles_from_all_chessboards
+from .chessdataset import ChessTileDataset, create_image_transforms
+from .generate_tiles import generate_tiles_from_all_chessboards
 
 DEFAULT_RATIO = 0.7  # ratio of training vs. test data
 DEFAULT_EPOCHS = 10
@@ -41,7 +38,7 @@ class ChessRecognitionTrainer:
         seed=1,
         verbose=True,
         overwrite = True,
-        generate_tiles = False
+        generate_tiles = True
 
     ):
         self.images_dir = images_dir
