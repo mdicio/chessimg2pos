@@ -1,4 +1,4 @@
-# 🧠 Chessboard Recognizer (Modernized PyTorch Edition)
+# 🧠 Chessboard Recognizer (Convert your chess images to FEN positions with one click!)
 
 This project uses a deep learning model implemented in PyTorch to recognize the positions of chess pieces on a chessboard image and convert it into [FEN](https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation) notation. This library introduces an easy and fast function to simply predict a fen from an image. For more advanced usage it also provides reusable components for training, inference, and data preparation.
 
