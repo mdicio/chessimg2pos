@@ -3,6 +3,8 @@ from .predictor import ChessPositionPredictor
 
 from .model_loader import download_pretrained_model
 
+__version__ = "0.1.1"
+
 def predict_fen(image_path, output_type = "simple"):
     model_path = download_pretrained_model()
     predictor = ChessPositionPredictor(model_path)

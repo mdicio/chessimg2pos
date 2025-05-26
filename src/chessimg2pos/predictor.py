@@ -20,7 +20,7 @@ from .chessdataset import create_image_transforms
 class ChessPositionPredictor:
     """An improved class to predict chess positions from images with better consistency"""
 
-    def __init__(self, model_path, fen_chars="1PNBRQKpnbrqk", use_grayscale=True, verbose=False):
+    def __init__(self, model_path, fen_chars="1RNBQKPrnbqkp", use_grayscale=True, verbose=False):
         """Initialize the predictor with a trained model
 
         Args:

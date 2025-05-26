@@ -1,26 +1,52 @@
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling==1.26.3", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "chessimg2pos"
-version = "0.1.0"
 description = "Recognize chess positions from board images using deep learning"
 readme = "README.md"
-license = { file = "LICENCE" }
-authors = [{ name = "Marco Di Ciò", email = "marcodicio.md@gmail.com" }]
-requires-python = ">=3.8"
+license = "MIT"
+requires-python = ">=3.10"
+keywords = ["chess", "FEN", "deep learning", "PyTorch", "computer vision"]
+authors = [
+  { name = "Marco Di Ciò", email = "marcodicio.md@gmail.com" }
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Games/Entertainment :: Board Games",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules"
+]
 dependencies = [
   "torch",
-  "torchvision",
+  "torchvision", 
   "numpy",
   "matplotlib",
   "Pillow",
-  "pandas"
+  "pandas",
+  "requests"
 ]
+dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/mdicio/chessimg2pos"
+Repository = "https://github.com/mdicio/chessimg2pos"
+Issues = "https://github.com/mdicio/chessimg2pos/issues"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.version]
+path = "src/chessimg2pos/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chessimg2pos"]
+
+[tool.uv.workspace]
+members = [
+    "chess2imgpos",
+]
