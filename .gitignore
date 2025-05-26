@@ -1,5 +1,6 @@
 #dist
 chess2imgpos/
+models/
 
 venv
 .mypy_cache
@@ -9,8 +10,6 @@ __pycache__
 *.html
 *.zip
 model.tf
-images/
-models/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
