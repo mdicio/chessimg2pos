@@ -49,40 +49,14 @@ print(fen)
 - Other dependencies in `requirements.txt`
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+pip install chessimg2pos
 ```
-
----
-
-
-
-## 🏋️‍♀️ Training
-
-Prepare a training set:
-
-- Use our provided [dataset](INSERT_YOUR_TRAINING_DATASET_LINK_HERE) or
-- Generate your own with:
-
-
-Train the model:
+or 
 
 ```bash
-python train.py
+git clone https://github.com/mdicio/chessimg2pos
+pip install -r requirements.txt
 ```
-
----
-
-## 🛠️ Tools
-
-- `view_images.py`: Debug 32x32 tile alignment with source chessboard
-- `save_chessboard.py chessboard.png <subdirectory> "<actual_fen>"`: Save misclassified examples to improve training
-- `debug.py`: Visualize prediction confidences and FEN accuracy
-
----
-
-
 
 ## 🙏 Acknowledgements
 
