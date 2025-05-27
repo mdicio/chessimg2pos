@@ -23,7 +23,7 @@ print(fen)
 ### Output:
 
 ```text
-3rkb1r/1pp2ppp/2n1q1n1/p3Pb2/2Pp4/PN3NB1/1P1QPPPP/3RKB1R
+11111111/11111111/11111111/1111p1K1/11k1P111/11111111/11111111/11111111
 ```
 
 ## 🖼️ Sample Results
@@ -35,7 +35,7 @@ print(fen)
 <img src="images/chess_image.png" width=240 />
 
 #### 🎯 Predicted FEN:
-`3rkb1r/1pp2ppp/2n1q1n1/p3Pb2/2Pp4/PN3NB1/1P1QPPPP/3RKB1R`
+`11111111/11111111/11111111/1111p1K1/11k1P111/11111111/11111111/11111111`
 
 </div>
 ---
