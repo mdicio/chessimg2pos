@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from PIL import Image
 from .chessboard_image import get_chessboard_tiles
-from .chessclassifier import ChessPieceClassifier
+from .chessclassifier import ChessPieceClassifier, EnhancedChessPieceClassifier, UltraEnhancedChessPieceClassifier
 from matplotlib.gridspec import GridSpec
 from .utils import compressed_fen
 
@@ -20,7 +20,7 @@ from .chessdataset import create_image_transforms
 class ChessPositionPredictor:
     """An improved class to predict chess positions from images with better consistency"""
 
-    def __init__(self, model_path, fen_chars="1RNBQKPrnbqkp", use_grayscale=True, verbose=False):
+    def __init__(self, model_path, classifier = "standard", fen_chars="1RNBQKPrnbqkp", use_grayscale=True, verbose=False):
         """Initialize the predictor with a trained model
 
         Args:
@@ -32,6 +32,7 @@ class ChessPositionPredictor:
         self.fen_chars = fen_chars
         self.use_grayscale = use_grayscale
         self.verbose = verbose
+        self.classifier = classifier
 
         # Ensure model path exists
         if not os.path.exists(model_path):
@@ -43,9 +44,18 @@ class ChessPositionPredictor:
             logger.info(f"Using device: {self.device}")
 
         # Create model and ensure it matches training configuration
-        self.model = ChessPieceClassifier(
-            num_classes=len(fen_chars), use_grayscale=use_grayscale
-        )
+        if self.classifier == "standard":
+            self.model = ChessPieceClassifier(
+                num_classes=len(fen_chars), use_grayscale=use_grayscale
+            )
+        elif self.classifier == "enhanced":
+            self.model = EnhancedChessPieceClassifier(
+                num_classes=len(fen_chars), use_grayscale=use_grayscale
+            )
+        if self.classifier == "ultra":
+            self.model = UltraEnhancedChessPieceClassifier(
+                num_classes=len(fen_chars), use_grayscale=use_grayscale
+            )
 
         # Load model weights with error handling
         try:
@@ -190,8 +200,9 @@ class ChessPositionPredictor:
         for row in board_matrix:
             fen_row = "".join(row)
             fen_rows.append(fen_row)
-        
+        # print("fen_rows", fen_rows)
         fen_notation = "/".join(fen_rows)
+        # print("fen_notation", fen_notation)
         if fen_type == "compressed":
             fen_out = compressed_fen(fen_notation)
         else:
@@ -227,7 +238,6 @@ class ChessPositionPredictor:
                             "Make sure to call predict_chessboard with return_tiles=True")
         
         chessboard_img = result['original_image']
-        tiles = result['tiles']
         fen = result['fen']
         predictions = result['predictions']
         

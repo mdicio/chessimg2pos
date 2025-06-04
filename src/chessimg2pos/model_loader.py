@@ -4,14 +4,14 @@ import torch
 import hashlib
 import requests
 from pathlib import Path
-PRETRAINED_MODEL_URL = "https://github.com/mdicio/chessimg2pos/releases/download/v0.1-alpha/model.zip"
+PRETRAINED_MODEL_URL = "https://github.com/mdicio/chessimg2pos/releases/download/0.1.3/model.zip"
 
 import zipfile
 
 def download_pretrained_model(cache_dir="~/.cache/chessimg2pos", verbose=True):
     os.makedirs(os.path.expanduser(cache_dir), exist_ok=True)
     zip_path = os.path.join(os.path.expanduser(cache_dir), "model.zip")
-    model_path = os.path.join(os.path.expanduser(cache_dir), "model.pth")
+    model_path = os.path.join(os.path.expanduser(cache_dir), "model.pt")
 
     if os.path.exists(model_path):
         return model_path
