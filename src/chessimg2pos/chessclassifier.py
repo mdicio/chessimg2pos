@@ -1,9 +1,10 @@
 import torch.nn as nn
+from .constants import DEFAULT_USE_GRAYSCALE
 
 class ChessPieceClassifier(nn.Module):
     """Chess piece classifier model"""
 
-    def __init__(self, num_classes=13, use_grayscale=True):
+    def __init__(self, num_classes=13, use_grayscale=DEFAULT_USE_GRAYSCALE):
         super(ChessPieceClassifier, self).__init__()
         input_channels = 1 if use_grayscale else 3
 
@@ -41,7 +42,7 @@ import torch.nn.functional as F
 class EnhancedChessPieceClassifier(nn.Module):
     """Enhanced chess piece classifier with minimal complexity increase"""
 
-    def __init__(self, num_classes=13, use_grayscale=True, dropout_rate=0.3):
+    def __init__(self, num_classes=13, use_grayscale=DEFAULT_USE_GRAYSCALE, dropout_rate=0.3):
         super(EnhancedChessPieceClassifier, self).__init__()
         input_channels = 1 if use_grayscale else 3
 
@@ -98,7 +99,7 @@ class EnhancedChessPieceClassifier(nn.Module):
 class UltraEnhancedChessPieceClassifier(nn.Module):
     """Most advanced version with attention and ensemble-like features"""
 
-    def __init__(self, num_classes=13, use_grayscale=True, dropout_rate=0.3):
+    def __init__(self, num_classes=13, use_grayscale=DEFAULT_USE_GRAYSCALE, dropout_rate=0.3):
         super(UltraEnhancedChessPieceClassifier, self).__init__()
         input_channels = 1 if use_grayscale else 3
 

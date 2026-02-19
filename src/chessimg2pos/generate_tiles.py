@@ -9,6 +9,7 @@ from glob import glob
 
 import numpy as np
 from .chessboard_image import get_chessboard_tiles
+from .constants import DEFAULT_USE_GRAYSCALE
 
 
 def _img_filename_prefix(chessboard_img_path):
@@ -55,7 +56,7 @@ def save_tiles(tiles, chessboard_img_path, tiles_dir):
         tiles[i].save(tile_img_filename, format="PNG")
 
 
-def generate_tiles_from_all_chessboards(chessboards_dir, tiles_dir, use_grayscale = True, overwrite = True):
+def generate_tiles_from_all_chessboards(chessboards_dir, tiles_dir, use_grayscale = DEFAULT_USE_GRAYSCALE, overwrite = True):
     """Generates 32x32 PNGs for each square of all chessboards
     in chessboards_dir
     """

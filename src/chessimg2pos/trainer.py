@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .chessclassifier import ChessPieceClassifier, EnhancedChessPieceClassifier, UltraEnhancedChessPieceClassifier
+from .constants import DEFAULT_CLASSIFIER, DEFAULT_FEN_CHARS, DEFAULT_USE_GRAYSCALE
 from torch.utils.data import DataLoader
 import glob
 
@@ -23,14 +24,13 @@ DEFAULT_RATIO = 0.7  # ratio of training vs. test data
 DEFAULT_EPOCHS = 10
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_LEARNING_RATE = 0.001
-DEFAULT_USE_GRAYSCALE = True
 
 class ChessRecognitionTrainer:
     def __init__(
         self,
         images_dir,
         model_path,
-        fen_chars="1RNBQKPrnbqkp",
+        fen_chars=DEFAULT_FEN_CHARS,
         use_grayscale=DEFAULT_USE_GRAYSCALE,
         train_test_ratio=DEFAULT_RATIO,
         batch_size=DEFAULT_BATCH_SIZE,
@@ -127,7 +127,7 @@ class ChessRecognitionTrainer:
             )
         return test_acc
 
-    def train(self, classifier="enhanced"):
+    def train(self, classifier=DEFAULT_CLASSIFIER):
         os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
         np.random.seed(self.seed)
         torch.manual_seed(self.seed)

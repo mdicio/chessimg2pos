@@ -1,5 +1,6 @@
 import numpy as np
 import PIL.Image
+from .constants import DEFAULT_USE_GRAYSCALE
 
 
 def _get_resized_chessboard(chessboard_img_path):
@@ -10,7 +11,7 @@ def _get_resized_chessboard(chessboard_img_path):
     return img_data.resize([256, 256], PIL.Image.BILINEAR)
 
 
-def get_chessboard_tiles(chessboard_img_path, use_grayscale=True):
+def get_chessboard_tiles(chessboard_img_path, use_grayscale=DEFAULT_USE_GRAYSCALE):
     """chessboard_img_path = path to a chessboard image
     use_grayscale = true/false for whether to return tiles in grayscale
 

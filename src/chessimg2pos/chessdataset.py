@@ -1,10 +1,11 @@
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
+from .constants import DEFAULT_USE_GRAYSCALE
 
 
 class ChessTileDataset(Dataset):
-    def __init__(self, image_paths, fen_chars, use_grayscale=True, transform=None):
+    def __init__(self, image_paths, fen_chars, use_grayscale=DEFAULT_USE_GRAYSCALE, transform=None):
         self.image_paths = image_paths
         self.fen_chars = fen_chars
         self.use_grayscale = use_grayscale
@@ -56,7 +57,7 @@ class ChessTileDataset(Dataset):
 #             ]
 #         )
 
-def create_image_transforms(use_grayscale=True):
+def create_image_transforms(use_grayscale=DEFAULT_USE_GRAYSCALE):
     if use_grayscale:
         return transforms.Compose([
             transforms.Grayscale(num_output_channels=1),  # ← ensure single-channel
