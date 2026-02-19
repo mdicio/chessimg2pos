@@ -39,12 +39,12 @@ class ChessRecognitionTrainer:
         seed=1,
         verbose=True,
         overwrite = True,
-        generate_tiles = True
-
+        generate_tiles = True,
+        tiles_dir=None,
     ):
         self.images_dir = images_dir
         self.generate_tiles = generate_tiles
-        self.tiles_dir = os.path.join(os.path.dirname(self.images_dir), "tiles")
+        self.tiles_dir = tiles_dir if tiles_dir is not None else os.path.join(self.images_dir, "tiles")
         self.model_path = model_path
         self.overwrite = overwrite
         self.fen_chars = fen_chars
@@ -138,9 +138,11 @@ class ChessRecognitionTrainer:
                                                 use_grayscale=self.use_grayscale,
                                                 overwrite=self.overwrite)
 
-        all_paths = np.array(glob.glob(f"{self.tiles_dir}/*/*.png"))
+        all_paths = np.array(
+            glob.glob(os.path.join(self.tiles_dir, "**", "*.png"), recursive=True)
+        )
         if len(all_paths) == 0:
-            raise ValueError(f"No PNG files found in {self.tiles_dir}/*/*.png")
+            raise ValueError(f"No PNG files found in {self.tiles_dir}/**/*.png")
 
         np.random.shuffle(all_paths)
         divider = int(len(all_paths) * self.train_test_ratio)
