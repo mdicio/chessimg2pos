@@ -418,7 +418,7 @@ class ChessPositionPredictor:
         ax3.axis("off")
 
         logger.info(f"Lichess editor: https://lichess.org/editor/{fen}")
-        plt.tight_layout()
+        fig.tight_layout()
 
         return fig
 
