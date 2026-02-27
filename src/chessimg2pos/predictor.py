@@ -7,21 +7,35 @@ import numpy as np
 import torch
 from PIL import Image
 from .chessboard_image import get_chessboard_tiles
-from .chessclassifier import ChessPieceClassifier, EnhancedChessPieceClassifier, UltraEnhancedChessPieceClassifier
+from .chessclassifier import (
+    ChessPieceClassifier,
+    EnhancedChessPieceClassifier,
+    UltraEnhancedChessPieceClassifier,
+)
 from .constants import DEFAULT_CLASSIFIER, DEFAULT_FEN_CHARS, DEFAULT_USE_GRAYSCALE
 from matplotlib.gridspec import GridSpec
 from .utils import compressed_fen
 
 # Set up logging
-logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 from .chessdataset import create_image_transforms
 
+
 class ChessPositionPredictor:
     """An improved class to predict chess positions from images with better consistency"""
 
-    def __init__(self, model_path, classifier = DEFAULT_CLASSIFIER, fen_chars=DEFAULT_FEN_CHARS, use_grayscale=DEFAULT_USE_GRAYSCALE, verbose=False):
+    def __init__(
+        self,
+        model_path,
+        classifier=DEFAULT_CLASSIFIER,
+        fen_chars=DEFAULT_FEN_CHARS,
+        use_grayscale=DEFAULT_USE_GRAYSCALE,
+        verbose=False,
+    ):
         """Initialize the predictor with a trained model
 
         Args:
@@ -53,16 +67,22 @@ class ChessPositionPredictor:
             self.model = EnhancedChessPieceClassifier(
                 num_classes=len(fen_chars), use_grayscale=use_grayscale
             )
-        if self.classifier == "ultra":
+        elif self.classifier == "ultra":
             self.model = UltraEnhancedChessPieceClassifier(
                 num_classes=len(fen_chars), use_grayscale=use_grayscale
+            )
+        else:
+            raise ValueError(
+                f"Unknown classifier '{self.classifier}'. Choose from: 'standard', 'enhanced', 'ultra'"
             )
 
         # Load model weights with error handling
         try:
             if self.verbose:
                 logger.info(f"Loading model from {model_path}")
-            state_dict = torch.load(model_path, map_location=self.device)
+            state_dict = torch.load(
+                model_path, map_location=self.device, weights_only=True
+            )
             self.model.load_state_dict(state_dict)
             self.model.to(self.device)
             self.model.eval()  # Set to evaluation mode
@@ -71,7 +91,7 @@ class ChessPositionPredictor:
 
         # Create transform with the same grayscale setting as used during training
         self.transform = create_image_transforms(use_grayscale=use_grayscale)
-        
+
         if self.verbose:
             logger.info(f"Model initialized with FEN chars: {self.fen_chars}")
             logger.info(f"Using grayscale: {self.use_grayscale}")
@@ -87,11 +107,11 @@ class ChessPositionPredictor:
         """
         # Create a copy to avoid modifying the original
         tile_img_copy = tile_img.copy()
-        
+
         # Apply grayscale conversion explicitly if needed to ensure consistency
         if self.use_grayscale:
             tile_img_copy = tile_img_copy.convert("L")
-            
+
         # Apply transformation
         try:
             img_tensor = self.transform(tile_img_copy).unsqueeze(0).to(self.device)
@@ -99,12 +119,14 @@ class ChessPositionPredictor:
             logger.error(f"Error transforming image: {str(e)}")
             # Return empty piece with low confidence as fallback
             return self.fen_chars[0], 0.0
-        
+
         # Verify channels match model expectation
         expected_channels = 1 if self.use_grayscale else 3
         if img_tensor.shape[1] != expected_channels:
-            logger.warning(f"Model expects {expected_channels} channels but got {img_tensor.shape[1]}")
-            
+            logger.warning(
+                f"Model expects {expected_channels} channels but got {img_tensor.shape[1]}"
+            )
+
             # Try to correct the channel mismatch
             if expected_channels == 1 and img_tensor.shape[1] == 3:
                 # Convert RGB to grayscale by averaging channels
@@ -120,22 +142,94 @@ class ChessPositionPredictor:
             try:
                 outputs = self.model(img_tensor)
                 probabilities = torch.nn.functional.softmax(outputs, dim=1)[0]
-                
+
                 # Get the highest probability and its index
                 max_prob, predicted_idx = torch.max(probabilities, 0)
-                
+
                 # Get top 3 predictions for debugging
                 if self.verbose:
-                    topk_probs, topk_indices = torch.topk(probabilities, min(3, len(self.fen_chars)))
-                    top_predictions = [(self.fen_chars[idx.item()], prob.item()) for idx, prob in zip(topk_indices, topk_probs)]
+                    topk_probs, topk_indices = torch.topk(
+                        probabilities, min(3, len(self.fen_chars))
+                    )
+                    top_predictions = [
+                        (self.fen_chars[idx.item()], prob.item())
+                        for idx, prob in zip(topk_indices, topk_probs)
+                    ]
                     logger.debug(f"Top 3 predictions: {top_predictions}")
-                
+
                 return self.fen_chars[predicted_idx.item()], max_prob.item()
             except Exception as e:
                 logger.error(f"Error during prediction: {str(e)}")
                 return self.fen_chars[0], 0.0  # Return empty square with low confidence
 
-    def predict_chessboard(self, image_path_or_object, return_tiles=False, fen_type = "standard"):
+    def evaluate_board_accuracy(self, board_dirs):
+        """Evaluate board-level FEN accuracy using this predictor.
+
+        For each board directory in *board_dirs* the predictor loads every
+        tile, calls :meth:`predict_tile`, reconstructs the full FEN
+        (expanded, ranks 8 → 1, columns a → h) and compares it against the
+        ground-truth FEN encoded in the directory name (``-`` separates ranks).
+
+        Args:
+            board_dirs: Iterable of **absolute** paths to board tile directories.
+                        Each directory must contain exactly 64 PNG files named
+                        ``{col}{rank}_{piece}.png`` (e.g. ``a1_P.png``).
+
+        Returns:
+            dict with keys:
+                ``board_accuracy``  – fraction of boards where predicted FEN
+                                      equals ground-truth FEN (float).
+                ``tile_accuracy``   – fraction of individual tiles predicted
+                                      correctly (float).
+                ``total_boards``    – number of boards evaluated (int).
+                ``correct_boards``  – number of perfectly predicted boards (int).
+        """
+        correct_boards = correct_tiles = total_boards = total_tiles = 0
+
+        for board_path in board_dirs:
+            board_dir_name = os.path.basename(board_path)
+            tile_files = [f for f in os.listdir(board_path) if f.endswith(".png")]
+            if len(tile_files) != 64:
+                continue
+
+            truth_fen = board_dir_name.replace("-", "/")
+            predicted_pieces = {}
+
+            for fname in tile_files:
+                col = ord(fname[0]) - ord("a")  # 'a'=0 … 'h'=7
+                rank = int(fname[1])  # 1 … 8
+                truth_char = fname[-5]  # filename: {col}{rank}_{piece}.png
+
+                img = Image.open(os.path.join(board_path, fname))
+                pred_char, _ = self.predict_tile(img)
+
+                predicted_pieces[(rank, col)] = pred_char
+                total_tiles += 1
+                if pred_char == truth_char:
+                    correct_tiles += 1
+
+            fen_rows = [
+                "".join(predicted_pieces[(rank, col)] for col in range(8))
+                for rank in range(8, 0, -1)
+            ]
+            predicted_fen = "/".join(fen_rows)
+
+            if predicted_fen == truth_fen:
+                correct_boards += 1
+            total_boards += 1
+
+        board_acc = correct_boards / total_boards if total_boards else 0.0
+        tile_acc = correct_tiles / total_tiles if total_tiles else 0.0
+        return {
+            "board_accuracy": board_acc,
+            "tile_accuracy": tile_acc,
+            "total_boards": total_boards,
+            "correct_boards": correct_boards,
+        }
+
+    def predict_chessboard(
+        self, image_path_or_object, return_tiles=False, fen_type="standard"
+    ):
         """Predict chess position from an image file or PIL Image object
 
         Args:
@@ -144,7 +238,7 @@ class ChessPositionPredictor:
 
         Returns:
             dict: {
-                'fen': predicted FEN string, 
+                'fen': predicted FEN string,
                 'confidence': overall confidence,
                 'predictions': detailed predictions,
                 'tiles': tile images if return_tiles=True
@@ -161,14 +255,16 @@ class ChessPositionPredictor:
             # Assume it's a PIL Image
             original_image = image_path_or_object
             image_path = None
-        
+
         # Get tiles with the same grayscale setting as training
         try:
-            tiles = get_chessboard_tiles(image_path_or_object, use_grayscale=self.use_grayscale)
+            tiles = get_chessboard_tiles(
+                image_path_or_object, use_grayscale=self.use_grayscale
+            )
         except Exception as e:
             logger.error(f"Error detecting chessboard tiles: {str(e)}")
             raise
-            
+
         if len(tiles) != 64:
             raise ValueError(f"Expected 64 tiles, got {len(tiles)}")
 
@@ -179,7 +275,9 @@ class ChessPositionPredictor:
                 fen_char, probability = self.predict_tile(tile)
                 row = 7 - (i // 8)  # Chess board rows are inverted in FEN
                 col = i % 8
-                square = chr(97 + col) + str(row + 1)  # Convert to algebraic notation (a1, h8, etc.)
+                square = chr(97 + col) + str(
+                    row + 1
+                )  # Convert to algebraic notation (a1, h8, etc.)
                 predictions.append((square, fen_char, probability))
             except Exception as e:
                 logger.error(f"Error predicting tile {i}: {str(e)}")
@@ -192,10 +290,12 @@ class ChessPositionPredictor:
         # Create the FEN string (from perspective of white)
         board_matrix = np.zeros((8, 8), dtype=object)
         for i, (square, fen_char, _) in enumerate(predictions):
-            row = 7 - (ord(square[1]) - ord('1'))  # Convert back to 0-7 indices, inverted
-            col = ord(square[0]) - ord('a')        # Convert a-h to 0-7 indices
+            row = 7 - (
+                ord(square[1]) - ord("1")
+            )  # Convert back to 0-7 indices, inverted
+            col = ord(square[0]) - ord("a")  # Convert a-h to 0-7 indices
             board_matrix[row, col] = fen_char
-        
+
         # Construct FEN string (read from top to bottom)
         fen_rows = []
         for row in board_matrix:
@@ -211,18 +311,18 @@ class ChessPositionPredictor:
 
         # Calculate overall confidence (product of individual confidences)
         confidence = reduce(lambda x, y: x * y, [p[2] for p in predictions])
-        
+
         # Prepare result
         result = {
-            'fen': fen_out,
-            'confidence': confidence,
-            'predictions': predictions,
+            "fen": fen_out,
+            "confidence": confidence,
+            "predictions": predictions,
         }
-        
+
         if return_tiles:
-            result['tiles'] = tiles
-            result['original_image'] = original_image
-            
+            result["tiles"] = tiles
+            result["original_image"] = original_image
+
         return result
 
     def visualize_prediction(self, result):
@@ -234,14 +334,16 @@ class ChessPositionPredictor:
         Returns:
             matplotlib Figure
         """
-        if 'original_image' not in result or 'tiles' not in result:
-            raise ValueError("The result dictionary must contain 'original_image' and 'tiles' keys. "
-                            "Make sure to call predict_chessboard with return_tiles=True")
-        
-        chessboard_img = result['original_image']
-        fen = result['fen']
-        predictions = result['predictions']
-        
+        if "original_image" not in result or "tiles" not in result:
+            raise ValueError(
+                "The result dictionary must contain 'original_image' and 'tiles' keys. "
+                "Make sure to call predict_chessboard with return_tiles=True"
+            )
+
+        chessboard_img = result["original_image"]
+        fen = result["fen"]
+        predictions = result["predictions"]
+
         # Create figure with subplots
         fig = plt.figure(figsize=(15, 12))
         gs = GridSpec(2, 2, figure=fig, height_ratios=[3, 1])
@@ -256,9 +358,9 @@ class ChessPositionPredictor:
         ax2 = fig.add_subplot(gs[0, 1])
         confidence_matrix = np.zeros((8, 8))
         for square, _, prob in predictions:
-            row = ord(square[1]) - ord('1')  # Convert 1-8 to 0-7 indices
-            col = ord(square[0]) - ord('a')  # Convert a-h to 0-7 indices
-            confidence_matrix[7-row, col] = prob  # Invert rows for visualization
+            row = ord(square[1]) - ord("1")  # Convert 1-8 to 0-7 indices
+            col = ord(square[0]) - ord("a")  # Convert a-h to 0-7 indices
+            confidence_matrix[7 - row, col] = prob  # Invert rows for visualization
 
         im = ax2.imshow(confidence_matrix, cmap="RdYlGn", vmin=0.5, vmax=1.0)
         ax2.set_title("Prediction Confidence")
@@ -269,13 +371,16 @@ class ChessPositionPredictor:
                 # Find the prediction for this square
                 square = chr(97 + j) + str(8 - i)  # Convert to algebraic notation
                 pred = next((p for p in predictions if p[0] == square), None)
-                
+
                 if pred:
                     piece, conf = pred[1], pred[2]
                     text = f"{piece}\n{conf:.2f}"
                     ax2.text(
-                        j, i, text,
-                        ha="center", va="center",
+                        j,
+                        i,
+                        text,
+                        ha="center",
+                        va="center",
                         color="black" if conf > 0.75 else "white",
                         fontsize=9,
                     )
@@ -283,7 +388,9 @@ class ChessPositionPredictor:
         ax2.set_xticks(np.arange(8))
         ax2.set_yticks(np.arange(8))
         ax2.set_xticklabels(["a", "b", "c", "d", "e", "f", "g", "h"])
-        ax2.set_yticklabels(["8", "7", "6", "5", "4", "3", "2", "1"])  # Reversed for chess notation
+        ax2.set_yticklabels(
+            ["8", "7", "6", "5", "4", "3", "2", "1"]
+        )  # Reversed for chess notation
         fig.colorbar(im, ax=ax2, label="Confidence")
 
         # Plot FEN and overall confidence
@@ -292,18 +399,27 @@ class ChessPositionPredictor:
             0.5, 0.6, f"Predicted FEN: {fen}", ha="center", va="center", fontsize=14
         )
         ax3.text(
-            0.5, 0.3, f"Overall confidence: {result['confidence']:.6f}",
-            ha="center", va="center", fontsize=12
+            0.5,
+            0.3,
+            f"Overall confidence: {result['confidence']:.6f}",
+            ha="center",
+            va="center",
+            fontsize=12,
         )
         ax3.text(
-            0.5, 0.0, f"Lichess editor: https://lichess.org/editor/{fen}",
-            ha="center", va="center", fontsize=12, color="blue"
+            0.5,
+            0.0,
+            f"Lichess editor: https://lichess.org/editor/{fen}",
+            ha="center",
+            va="center",
+            fontsize=12,
+            color="blue",
         )
         ax3.axis("off")
-        
+
         logger.info(f"Lichess editor: https://lichess.org/editor/{fen}")
         plt.tight_layout()
-        
+
         return fig
 
     def compare_predictions(self, image_path, show_tiles=True):
@@ -312,19 +428,21 @@ class ChessPositionPredictor:
         Args:
             image_path: Path to the chessboard image
             show_tiles: Whether to display individual tiles
-            
+
         Returns:
             dict: Results of different prediction methods for comparison
         """
         logger.info(f"Analyzing image: {image_path}")
-        
+
         # Try different grayscale settings
         original_grayscale = self.use_grayscale
-        
+
         # 1. Standard prediction
         standard_result = self.predict_chessboard(image_path, return_tiles=True)
-        logger.info(f"Standard prediction (grayscale={self.use_grayscale}): {standard_result['fen']}")
-        
+        logger.info(
+            f"Standard prediction (grayscale={self.use_grayscale}): {standard_result['fen']}"
+        )
+
         # 2. Alternative grayscale setting
         self.use_grayscale = not original_grayscale
         logger.info(f"Trying with grayscale={self.use_grayscale}")
@@ -334,26 +452,23 @@ class ChessPositionPredictor:
         except Exception as e:
             logger.error(f"Alternative method failed: {str(e)}")
             alternative_result = None
-        
+
         # Restore original setting
         self.use_grayscale = original_grayscale
-        
+
         # Display tiles if requested
-        if show_tiles and standard_result.get('tiles'):
+        if show_tiles and standard_result.get("tiles"):
             fig, axs = plt.subplots(8, 8, figsize=(10, 10))
-            for i, tile in enumerate(standard_result['tiles']):
+            for i, tile in enumerate(standard_result["tiles"]):
                 row, col = i // 8, i % 8
                 axs[row, col].imshow(tile)
-                pred = standard_result['predictions'][i]
+                pred = standard_result["predictions"][i]
                 axs[row, col].set_title(f"{pred[1]} ({pred[2]:.2f})", fontsize=8)
-                axs[row, col].axis('off')
+                axs[row, col].axis("off")
             plt.tight_layout()
             plt.show()
-            
-        return {
-            'standard': standard_result,
-            'alternative': alternative_result
-        }
+
+        return {"standard": standard_result, "alternative": alternative_result}
 
     def inspect_model(self):
         """Print model architecture and configuration details"""
@@ -361,18 +476,20 @@ class ChessPositionPredictor:
         logger.info(f"FEN characters: {self.fen_chars}")
         logger.info(f"Using grayscale: {self.use_grayscale}")
         logger.info(f"Device: {self.device}")
-        
+
         # Count parameters
         total_params = sum(p.numel() for p in self.model.parameters())
-        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        trainable_params = sum(
+            p.numel() for p in self.model.parameters() if p.requires_grad
+        )
         logger.info(f"Total parameters: {total_params:,}")
         logger.info(f"Trainable parameters: {trainable_params:,}")
-        
+
         return {
-            'architecture': str(self.model),
-            'fen_chars': self.fen_chars,
-            'use_grayscale': self.use_grayscale,
-            'device': str(self.device),
-            'total_params': total_params,
-            'trainable_params': trainable_params
+            "architecture": str(self.model),
+            "fen_chars": self.fen_chars,
+            "use_grayscale": self.use_grayscale,
+            "device": str(self.device),
+            "total_params": total_params,
+            "trainable_params": trainable_params,
         }

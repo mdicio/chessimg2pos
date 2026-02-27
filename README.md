@@ -15,7 +15,7 @@ for more advanced usages (training/inference)
 ### Predict from an image
 
 ```python
-from recognizer import predict_fen
+from chessimg2pos import predict_fen
 fen = predict_fen("../images/chess_image.png")
 print(fen)
 ```
@@ -44,7 +44,7 @@ print(fen)
 
 ### Requirements
 
-- Python 3.10+
+- Python 3.10–3.14
 - PyTorch
 - Other dependencies in `requirements.txt`
 
@@ -87,12 +87,12 @@ trainer = ChessRecognitionTrainer(
     epochs = 5,
     overwrite = False
 )
-model, device, accuracy = trainer.train()
+model, device, accuracy = trainer.train(classifier="enhanced")
 ```
 
 ---
 
-### 🔍 ImprovedChessPositionPredictor
+### 🔍 ChessPositionPredictor
 
 Loads a trained model and predicts a FEN string from a chessboard image.
 

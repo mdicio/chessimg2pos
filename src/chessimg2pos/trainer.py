@@ -6,7 +6,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .chessclassifier import ChessPieceClassifier, EnhancedChessPieceClassifier, UltraEnhancedChessPieceClassifier
+from .chessclassifier import (
+    ChessPieceClassifier,
+    EnhancedChessPieceClassifier,
+    UltraEnhancedChessPieceClassifier,
+)
 from .constants import DEFAULT_CLASSIFIER, DEFAULT_FEN_CHARS, DEFAULT_USE_GRAYSCALE
 from torch.utils.data import DataLoader
 import glob
@@ -25,6 +29,7 @@ DEFAULT_EPOCHS = 10
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_LEARNING_RATE = 0.001
 
+
 class ChessRecognitionTrainer:
     def __init__(
         self,
@@ -38,13 +43,18 @@ class ChessRecognitionTrainer:
         epochs=DEFAULT_EPOCHS,
         seed=1,
         verbose=True,
-        overwrite = True,
-        generate_tiles = True,
+        overwrite=True,
+        generate_tiles=True,
         tiles_dir=None,
+        board_level_split=False,
     ):
         self.images_dir = images_dir
         self.generate_tiles = generate_tiles
-        self.tiles_dir = tiles_dir if tiles_dir is not None else os.path.join(self.images_dir, "tiles")
+        self.tiles_dir = (
+            tiles_dir
+            if tiles_dir is not None
+            else os.path.join(self.images_dir, "tiles")
+        )
         self.model_path = model_path
         self.overwrite = overwrite
         self.fen_chars = fen_chars
@@ -55,8 +65,11 @@ class ChessRecognitionTrainer:
         self.epochs = epochs
         self.seed = seed
         self.verbose = verbose
+        self.board_level_split = board_level_split
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.setLevel(logging.INFO if verbose else logging.WARNING)
+        # Populated after train() when board_level_split=True
+        self.test_board_dirs: list = []
 
     def _train_epoch(self, model, train_loader, criterion, optimizer):
         model.train()
@@ -133,10 +146,12 @@ class ChessRecognitionTrainer:
         torch.manual_seed(self.seed)
 
         if self.generate_tiles:
-            generate_tiles_from_all_chessboards(chessboards_dir=self.images_dir,  
-                                                tiles_dir=self.tiles_dir,
-                                                use_grayscale=self.use_grayscale,
-                                                overwrite=self.overwrite)
+            generate_tiles_from_all_chessboards(
+                chessboards_dir=self.images_dir,
+                tiles_dir=self.tiles_dir,
+                use_grayscale=self.use_grayscale,
+                overwrite=self.overwrite,
+            )
 
         all_paths = np.array(
             glob.glob(os.path.join(self.tiles_dir, "**", "*.png"), recursive=True)
@@ -144,18 +159,47 @@ class ChessRecognitionTrainer:
         if len(all_paths) == 0:
             raise ValueError(f"No PNG files found in {self.tiles_dir}/**/*.png")
 
-        np.random.shuffle(all_paths)
-        divider = int(len(all_paths) * self.train_test_ratio)
-        train_paths = all_paths[:divider]
-        test_paths = all_paths[divider:]
+        if self.board_level_split:
+            # Split at the board-directory level so no tile from a test board
+            # leaks into the training set.
+            board_dirs = sorted(
+                d
+                for d in os.listdir(self.tiles_dir)
+                if os.path.isdir(os.path.join(self.tiles_dir, d))
+            )
+            np.random.shuffle(board_dirs)
+            split = int(len(board_dirs) * self.train_test_ratio)
+            train_board_dirs = board_dirs[:split]
+            test_board_dirs = board_dirs[split:]
+            self.test_board_dirs = [
+                os.path.join(self.tiles_dir, d) for d in test_board_dirs
+            ]
 
-        # Enhanced transforms based on classifier type
-        if classifier == "enhanced":
-            train_transform = create_image_transforms(self.use_grayscale)
-            val_transform = create_image_transforms(self.use_grayscale)
+            def _paths_for_boards(dirs):
+                paths = []
+                for d in dirs:
+                    board_path = os.path.join(self.tiles_dir, d)
+                    paths.extend(
+                        os.path.join(board_path, f)
+                        for f in os.listdir(board_path)
+                        if f.endswith(".png")
+                    )
+                return np.array(paths)
+
+            train_paths = _paths_for_boards(train_board_dirs)
+            test_paths = _paths_for_boards(test_board_dirs)
+            logger.info(
+                f"Board-level split: {len(train_board_dirs)} train boards "
+                f"/ {len(test_board_dirs)} test boards"
+            )
         else:
-            train_transform = create_image_transforms(self.use_grayscale)
-            val_transform = create_image_transforms(self.use_grayscale)
+            np.random.shuffle(all_paths)
+            divider = int(len(all_paths) * self.train_test_ratio)
+            train_paths = all_paths[:divider]
+            test_paths = all_paths[divider:]
+
+        train_transform = create_image_transforms(self.use_grayscale)
+        val_transform = create_image_transforms(self.use_grayscale)
 
         train_dataset = ChessTileDataset(
             train_paths, self.fen_chars, self.use_grayscale, train_transform
@@ -180,27 +224,36 @@ class ChessRecognitionTrainer:
             model = UltraEnhancedChessPieceClassifier(
                 num_classes=len(self.fen_chars), use_grayscale=self.use_grayscale
             ).to(self.device)
-        else:
+        elif classifier == "standard":
             model = ChessPieceClassifier(
                 num_classes=len(self.fen_chars), use_grayscale=self.use_grayscale
             ).to(self.device)
+        else:
+            raise ValueError(
+                f"Unknown classifier '{classifier}'. Choose from: 'standard', 'enhanced', 'ultra'"
+            )
 
         # Enhanced loss function
         criterion_ce = nn.CrossEntropyLoss()
-        criterion_smooth = LabelSmoothingLoss(classes=len(self.fen_chars), smoothing=0.1)
+        criterion_smooth = LabelSmoothingLoss(
+            classes=len(self.fen_chars), smoothing=0.1
+        )
         criterion_focal = FocalLoss(alpha=1, gamma=2)
-        
+
         # Combined loss function
         def combined_criterion(pred, target):
-            return (0.5 * criterion_ce(pred, target) + 
-                    0.3 * criterion_smooth(pred, target) + 
-                    0.2 * criterion_focal(pred, target))
+            return (
+                0.5 * criterion_ce(pred, target)
+                + 0.3 * criterion_smooth(pred, target)
+                + 0.2 * criterion_focal(pred, target)
+            )
 
         # Enhanced optimizer and scheduler
         if classifier in ["enhanced", "ultra"]:
-            initial_lr = self.learning_rate*2
-            optimizer = torch.optim.AdamW(model.parameters(), 
-                                        lr=initial_lr, weight_decay=1e-4)
+            initial_lr = self.learning_rate * 2
+            optimizer = torch.optim.AdamW(
+                model.parameters(), lr=initial_lr, weight_decay=1e-4
+            )
             scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
                 optimizer, T_0=5, T_mult=2, eta_min=1e-6
             )
@@ -250,23 +303,25 @@ class ChessRecognitionTrainer:
 
         return model, self.device, test_acc
 
+
 # Training improvements
 class FocalLoss(nn.Module):
     """Focal Loss for handling class imbalance and hard examples"""
-    def __init__(self, alpha=1, gamma=2, reduction='mean'):
+
+    def __init__(self, alpha=1, gamma=2, reduction="mean"):
         super(FocalLoss, self).__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.reduction = reduction
 
     def forward(self, inputs, targets):
-        ce_loss = F.cross_entropy(inputs, targets, reduction='none')
+        ce_loss = F.cross_entropy(inputs, targets, reduction="none")
         pt = torch.exp(-ce_loss)
-        focal_loss = self.alpha * (1-pt)**self.gamma * ce_loss
-        
-        if self.reduction == 'mean':
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+
+        if self.reduction == "mean":
             return focal_loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return focal_loss.sum()
         else:
             return focal_loss
@@ -274,6 +329,7 @@ class FocalLoss(nn.Module):
 
 class LabelSmoothingLoss(nn.Module):
     """Label smoothing for better generalization"""
+
     def __init__(self, classes, smoothing=0.1):
         super(LabelSmoothingLoss, self).__init__()
         self.confidence = 1.0 - smoothing
@@ -286,23 +342,3 @@ class LabelSmoothingLoss(nn.Module):
         true_dist.fill_(self.smoothing / (self.classes - 1))
         true_dist.scatter_(1, target.data.unsqueeze(1), self.confidence)
         return torch.mean(torch.sum(-true_dist * pred, dim=-1))
-
-
-
-
-
-# Data augmentation suggestions (implement in your data loading)
-def get_enhanced_transforms():
-    """Enhanced data augmentation for chess pieces"""
-    from torchvision import transforms
-    
-    train_transforms = transforms.Compose([
-        transforms.RandomRotation(degrees=(-5, 5)),  # Small rotations
-        transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),  # Small translations
-        transforms.ColorJitter(brightness=0.1, contrast=0.1),  # Lighting variations
-        transforms.RandomErasing(p=0.1, scale=(0.02, 0.1)),  # Occlusion simulation
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])  # For grayscale
-    ])
-    
-    return train_transforms

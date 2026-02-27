@@ -4,18 +4,25 @@ from .constants import DEFAULT_USE_GRAYSCALE
 
 
 def _get_resized_chessboard(chessboard_img_path):
-    """chessboard_img_path = path to a chessboard image
+    """chessboard_img_path = path to a chessboard image, or a PIL Image object.
     Returns a 256x256 image of a chessboard (32x32 per tile)
     """
-    img_data = PIL.Image.open(chessboard_img_path).convert("RGB")
+    if isinstance(chessboard_img_path, PIL.Image.Image):
+        img_data = chessboard_img_path.convert("RGB")
+    else:
+        img_data = PIL.Image.open(chessboard_img_path).convert("RGB")
     return img_data.resize([256, 256], PIL.Image.BILINEAR)
 
 
 def get_chessboard_tiles(chessboard_img_path, use_grayscale=DEFAULT_USE_GRAYSCALE):
-    """chessboard_img_path = path to a chessboard image
-    use_grayscale = true/false for whether to return tiles in grayscale
+    """Extract 64 32x32 tile images from a chessboard.
 
-    Returns a list (length 64) of 32x32 image data
+    Args:
+        chessboard_img_path: Path to a chessboard image file, or a PIL Image object.
+        use_grayscale: Return tiles in grayscale when True.
+
+    Returns:
+        list[PIL.Image]: 64 tiles in order from top-left (A8) to bottom-right (H1).
     """
     img_data = _get_resized_chessboard(chessboard_img_path)
     if use_grayscale:
