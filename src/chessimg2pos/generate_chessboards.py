@@ -14,7 +14,9 @@ import PIL.Image
 # https://backscattering.de/web-boardimage/board.png?fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR
 
 
-def generate_random_chessboards(chessboards_dir, n, img_url_template, fen_chars) -> None:
+def generate_random_chessboards(
+    chessboards_dir, n, img_url_template, fen_chars
+) -> None:
     """Generates n random FEN diagrams from chess diagram template urls and
     saves chessboard images to chessboards_dir
 

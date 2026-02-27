@@ -3,7 +3,8 @@
 import os
 from glob import glob
 
-def save_output_html(chessboards_dir, tile_dirs, output_file = "images.html"):
+
+def save_output_html(chessboards_dir, tile_dirs, output_file="images.html"):
     html = '<html lang="en">'
     html += '<link rel="stylesheet" href="./web/style.css" />'
     for tile_dir in tile_dirs:
@@ -37,4 +38,3 @@ def save_output_html(chessboards_dir, tile_dirs, output_file = "images.html"):
     html += "</html>"
     with open(output_file, "w") as f:
         f.write(html)
-

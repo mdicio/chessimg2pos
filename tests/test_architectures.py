@@ -44,7 +44,7 @@ _TILES_DIR = os.path.normpath(
 _FEN_CHARS = "1RNBQKPrnbqkp"
 _USE_GRAYSCALE = True
 _TRAIN_RATIO = 0.8
-_EPOCHS = 3               # kept small for a fast test run
+_EPOCHS = 3  # kept small for a fast test run
 _BATCH_SIZE = 64
 _SEED = 42
 _MIN_FEN_ACCURACY = 0.75  # board-level FEN accuracy threshold
@@ -71,32 +71,46 @@ class TestModelArchitectures(unittest.TestCase):
 
     def test_standard_grayscale(self):
         from chessimg2pos.chessclassifier import ChessPieceClassifier
+
         m = ChessPieceClassifier(num_classes=self.NUM_CLASSES, use_grayscale=True)
         self._check_output(m, self.INPUT_GRAYSCALE)
 
     def test_standard_rgb(self):
         from chessimg2pos.chessclassifier import ChessPieceClassifier
+
         m = ChessPieceClassifier(num_classes=self.NUM_CLASSES, use_grayscale=False)
         self._check_output(m, self.INPUT_RGB)
 
     def test_enhanced_grayscale(self):
         from chessimg2pos.chessclassifier import EnhancedChessPieceClassifier
-        m = EnhancedChessPieceClassifier(num_classes=self.NUM_CLASSES, use_grayscale=True)
+
+        m = EnhancedChessPieceClassifier(
+            num_classes=self.NUM_CLASSES, use_grayscale=True
+        )
         self._check_output(m, self.INPUT_GRAYSCALE)
 
     def test_enhanced_rgb(self):
         from chessimg2pos.chessclassifier import EnhancedChessPieceClassifier
-        m = EnhancedChessPieceClassifier(num_classes=self.NUM_CLASSES, use_grayscale=False)
+
+        m = EnhancedChessPieceClassifier(
+            num_classes=self.NUM_CLASSES, use_grayscale=False
+        )
         self._check_output(m, self.INPUT_RGB)
 
     def test_ultra_grayscale(self):
         from chessimg2pos.chessclassifier import UltraEnhancedChessPieceClassifier
-        m = UltraEnhancedChessPieceClassifier(num_classes=self.NUM_CLASSES, use_grayscale=True)
+
+        m = UltraEnhancedChessPieceClassifier(
+            num_classes=self.NUM_CLASSES, use_grayscale=True
+        )
         self._check_output(m, self.INPUT_GRAYSCALE)
 
     def test_ultra_rgb(self):
         from chessimg2pos.chessclassifier import UltraEnhancedChessPieceClassifier
-        m = UltraEnhancedChessPieceClassifier(num_classes=self.NUM_CLASSES, use_grayscale=False)
+
+        m = UltraEnhancedChessPieceClassifier(
+            num_classes=self.NUM_CLASSES, use_grayscale=False
+        )
         self._check_output(m, self.INPUT_RGB)
 
     def test_predictor_rejects_unknown_classifier(self):
@@ -171,7 +185,7 @@ class TestRealDataPerformance(unittest.TestCase):
             print(f"\n[TestRealDataPerformance] Training {classifier} ...", flush=True)
 
             trainer = ChessRecognitionTrainer(
-                images_dir=tmpdir,        # not used (generate_tiles=False)
+                images_dir=tmpdir,  # not used (generate_tiles=False)
                 tiles_dir=_TILES_DIR,
                 model_path=model_path,
                 fen_chars=_FEN_CHARS,
@@ -225,7 +239,8 @@ class TestRealDataPerformance(unittest.TestCase):
         """Standard classifier must reach _MIN_FEN_ACCURACY on held-out boards."""
         r = self._results["standard"]
         self.assertGreaterEqual(
-            r["board_accuracy"], _MIN_FEN_ACCURACY,
+            r["board_accuracy"],
+            _MIN_FEN_ACCURACY,
             f"standard board FEN accuracy {r['board_accuracy']:.4f} < {_MIN_FEN_ACCURACY}",
         )
 
@@ -233,7 +248,8 @@ class TestRealDataPerformance(unittest.TestCase):
         """Enhanced classifier must reach _MIN_FEN_ACCURACY on held-out boards."""
         r = self._results["enhanced"]
         self.assertGreaterEqual(
-            r["board_accuracy"], _MIN_FEN_ACCURACY,
+            r["board_accuracy"],
+            _MIN_FEN_ACCURACY,
             f"enhanced board FEN accuracy {r['board_accuracy']:.4f} < {_MIN_FEN_ACCURACY}",
         )
 
@@ -241,7 +257,8 @@ class TestRealDataPerformance(unittest.TestCase):
         """Ultra classifier must reach _MIN_FEN_ACCURACY on held-out boards."""
         r = self._results["ultra"]
         self.assertGreaterEqual(
-            r["board_accuracy"], _MIN_FEN_ACCURACY,
+            r["board_accuracy"],
+            _MIN_FEN_ACCURACY,
             f"ultra board FEN accuracy {r['board_accuracy']:.4f} < {_MIN_FEN_ACCURACY}",
         )
 

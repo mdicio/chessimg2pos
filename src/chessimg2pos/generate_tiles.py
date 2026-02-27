@@ -25,7 +25,9 @@ def _img_filename_prefix(chessboard_img_path):
 def _img_sub_dir(chessboard_img_path, chessboards_dir, tiles_dir):
     """The sub-directory where the chessboard tile images will be saved"""
     rel_img_path = os.path.relpath(chessboard_img_path, chessboards_dir)
-    rel_sub_dir = os.path.splitext(rel_img_path)[0]  # strip .png while preserving nested folders
+    rel_sub_dir = os.path.splitext(rel_img_path)[
+        0
+    ]  # strip .png while preserving nested folders
     return os.path.join(tiles_dir, rel_sub_dir)
 
 
@@ -43,9 +45,9 @@ def save_tiles(tiles, chessboard_img_path, chessboards_dir, tiles_dir):
     # print("\tSaving tiles to {}\n".format(img_save_dir))
     if not os.path.exists(img_save_dir):
         os.makedirs(img_save_dir)
-        
+
     piece_positions = _img_filename_prefix(chessboard_img_path).split("-")
-    #`print("piece_positions", piece_positions)
+    # `print("piece_positions", piece_positions)
     files = "abcdefgh"
     for i in range(64):
         piece = piece_positions[math.floor(i / 8)][i % 8]
@@ -54,7 +56,9 @@ def save_tiles(tiles, chessboard_img_path, chessboards_dir, tiles_dir):
         tiles[i].save(tile_img_filename, format="PNG")
 
 
-def generate_tiles_from_all_chessboards(chessboards_dir, tiles_dir, use_grayscale = DEFAULT_USE_GRAYSCALE, overwrite = True):
+def generate_tiles_from_all_chessboards(
+    chessboards_dir, tiles_dir, use_grayscale=DEFAULT_USE_GRAYSCALE, overwrite=True
+):
     """Generates 32x32 PNGs for each square of all chessboards
     in chessboards_dir
     """

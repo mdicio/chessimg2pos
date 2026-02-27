@@ -3,6 +3,7 @@
 import numpy as np
 import PIL.Image
 
+
 def _get_all_sequences(seq, min_seq_len=7, err_px=5):
     """Given sequence of increasing numbers, get all sequences with common
     spacing (within err_px) that contain at least min_seq_len values
