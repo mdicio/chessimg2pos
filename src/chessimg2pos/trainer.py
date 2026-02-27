@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .chessclassifier import ChessPieceClassifier, EnhancedChessPieceClassifier, UltraEnhancedChessPieceClassifier
+from .constants import DEFAULT_CLASSIFIER, DEFAULT_FEN_CHARS, DEFAULT_USE_GRAYSCALE
 from torch.utils.data import DataLoader
 import glob
 
@@ -23,14 +24,13 @@ DEFAULT_RATIO = 0.7  # ratio of training vs. test data
 DEFAULT_EPOCHS = 10
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_LEARNING_RATE = 0.001
-DEFAULT_USE_GRAYSCALE = True
 
 class ChessRecognitionTrainer:
     def __init__(
         self,
         images_dir,
         model_path,
-        fen_chars="1RNBQKPrnbqkp",
+        fen_chars=DEFAULT_FEN_CHARS,
         use_grayscale=DEFAULT_USE_GRAYSCALE,
         train_test_ratio=DEFAULT_RATIO,
         batch_size=DEFAULT_BATCH_SIZE,
@@ -39,12 +39,12 @@ class ChessRecognitionTrainer:
         seed=1,
         verbose=True,
         overwrite = True,
-        generate_tiles = True
-
+        generate_tiles = True,
+        tiles_dir=None,
     ):
         self.images_dir = images_dir
         self.generate_tiles = generate_tiles
-        self.tiles_dir = os.path.join(os.path.dirname(self.images_dir), "tiles")
+        self.tiles_dir = tiles_dir if tiles_dir is not None else os.path.join(self.images_dir, "tiles")
         self.model_path = model_path
         self.overwrite = overwrite
         self.fen_chars = fen_chars
@@ -127,7 +127,7 @@ class ChessRecognitionTrainer:
             )
         return test_acc
 
-    def train(self, classifier="enhanced"):
+    def train(self, classifier=DEFAULT_CLASSIFIER):
         os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
         np.random.seed(self.seed)
         torch.manual_seed(self.seed)
@@ -138,9 +138,11 @@ class ChessRecognitionTrainer:
                                                 use_grayscale=self.use_grayscale,
                                                 overwrite=self.overwrite)
 
-        all_paths = np.array(glob.glob(f"{self.tiles_dir}/*/*.png"))
+        all_paths = np.array(
+            glob.glob(os.path.join(self.tiles_dir, "**", "*.png"), recursive=True)
+        )
         if len(all_paths) == 0:
-            raise ValueError(f"No PNG files found in {self.tiles_dir}/*/*.png")
+            raise ValueError(f"No PNG files found in {self.tiles_dir}/**/*.png")
 
         np.random.shuffle(all_paths)
         divider = int(len(all_paths) * self.train_test_ratio)

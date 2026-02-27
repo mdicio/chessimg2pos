@@ -8,6 +8,7 @@ import torch
 from PIL import Image
 from .chessboard_image import get_chessboard_tiles
 from .chessclassifier import ChessPieceClassifier, EnhancedChessPieceClassifier, UltraEnhancedChessPieceClassifier
+from .constants import DEFAULT_CLASSIFIER, DEFAULT_FEN_CHARS, DEFAULT_USE_GRAYSCALE
 from matplotlib.gridspec import GridSpec
 from .utils import compressed_fen
 
@@ -20,7 +21,7 @@ from .chessdataset import create_image_transforms
 class ChessPositionPredictor:
     """An improved class to predict chess positions from images with better consistency"""
 
-    def __init__(self, model_path, classifier = "standard", fen_chars="1RNBQKPrnbqkp", use_grayscale=True, verbose=False):
+    def __init__(self, model_path, classifier = DEFAULT_CLASSIFIER, fen_chars=DEFAULT_FEN_CHARS, use_grayscale=DEFAULT_USE_GRAYSCALE, verbose=False):
         """Initialize the predictor with a trained model
 
         Args:

@@ -9,6 +9,7 @@ from glob import glob
 
 import numpy as np
 from .chessboard_image import get_chessboard_tiles
+from .constants import DEFAULT_USE_GRAYSCALE
 
 
 def _img_filename_prefix(chessboard_img_path):
@@ -21,26 +22,24 @@ def _img_filename_prefix(chessboard_img_path):
     return fen_like_part  # will be split later into 8 parts using "-"
 
 
-def _img_sub_dir(chessboard_img_path, tiles_dir):
+def _img_sub_dir(chessboard_img_path, chessboards_dir, tiles_dir):
     """The sub-directory where the chessboard tile images will be saved"""
-    filename = os.path.basename(chessboard_img_path)
-    sub_dir = filename[:-4]  # strip .png
-    # print("subdir 1", sub_dir)
-    # print("subdir 2", os.path.join(tiles_dir, sub_dir))
-    return os.path.join(tiles_dir, sub_dir)
+    rel_img_path = os.path.relpath(chessboard_img_path, chessboards_dir)
+    rel_sub_dir = os.path.splitext(rel_img_path)[0]  # strip .png while preserving nested folders
+    return os.path.join(tiles_dir, rel_sub_dir)
 
 
-def save_tiles(tiles, chessboard_img_path, tiles_dir):
+def save_tiles(tiles, chessboard_img_path, chessboards_dir, tiles_dir):
     """Saves all 64 tiles as 32x32 PNG files with this naming convention:
 
     a1_R.png (white rook on a1)
     d8_q.png (black queen on d8)
     c4_1.png (nothing on c4)
     """
-    sub_dir = _img_sub_dir(chessboard_img_path, tiles_dir)
+    sub_dir = _img_sub_dir(chessboard_img_path, chessboards_dir, tiles_dir)
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
-    img_save_dir = _img_sub_dir(chessboard_img_path, tiles_dir)
+    img_save_dir = _img_sub_dir(chessboard_img_path, chessboards_dir, tiles_dir)
     # print("\tSaving tiles to {}\n".format(img_save_dir))
     if not os.path.exists(img_save_dir):
         os.makedirs(img_save_dir)
@@ -55,14 +54,16 @@ def save_tiles(tiles, chessboard_img_path, tiles_dir):
         tiles[i].save(tile_img_filename, format="PNG")
 
 
-def generate_tiles_from_all_chessboards(chessboards_dir, tiles_dir, use_grayscale = True, overwrite = True):
+def generate_tiles_from_all_chessboards(chessboards_dir, tiles_dir, use_grayscale = DEFAULT_USE_GRAYSCALE, overwrite = True):
     """Generates 32x32 PNGs for each square of all chessboards
     in chessboards_dir
     """
     if not os.path.exists(tiles_dir):
         os.makedirs(tiles_dir)
 
-    chessboard_img_filenames = glob("{}/*.png".format(chessboards_dir))
+    chessboard_img_filenames = sorted(
+        glob(os.path.join(chessboards_dir, "**", "*.png"), recursive=True)
+    )
 
     # chessboard_img_filenames = chessboard_img_filenames[:1]
     num_chessboards = len(chessboard_img_filenames)
@@ -71,7 +72,7 @@ def generate_tiles_from_all_chessboards(chessboards_dir, tiles_dir, use_grayscal
     num_failed = 0
     for i, chessboard_img_path in enumerate(chessboard_img_filenames):
         # print("%3d/%d %s" % (i + 1, num_chessboards, chessboard_img_path))
-        img_save_dir = _img_sub_dir(chessboard_img_path, tiles_dir)
+        img_save_dir = _img_sub_dir(chessboard_img_path, chessboards_dir, tiles_dir)
         if os.path.exists(img_save_dir) and not overwrite:
             print("\tIgnoring existing {}\n".format(img_save_dir))
             num_skipped += 1
@@ -81,7 +82,7 @@ def generate_tiles_from_all_chessboards(chessboards_dir, tiles_dir, use_grayscal
             print("\t!! Expected 64 tiles. Got {}\n".format(len(tiles)))
             num_failed += 1
             continue
-        save_tiles(tiles, chessboard_img_path, tiles_dir)
+        save_tiles(tiles, chessboard_img_path, chessboards_dir, tiles_dir)
         num_success += 1
     print(
         "Processed {} chessboard images ({} generated, {} skipped, {} failed)".format(
