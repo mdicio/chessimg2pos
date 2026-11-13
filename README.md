@@ -35,6 +35,67 @@ Full credits to [linrock/chessboard-recognizer](https://github.com/linrock/chess
 
 ---
 
+## ✨ Model v2
+
+v2 reads the whole board instead of 64 separate tiles. A small locator first finds the board inside a larger screenshot or photo (four corners, so tilted phone photos are straightened). Then a ConvNeXt-tiny + transformer model classifies all 64 squares together and also predicts which side is at the bottom. A last step fixes impossible results, like two white kings or pawns on the back rank, but only on squares the model was unsure about.
+
+### Accuracy
+
+Exact-board accuracy is the share of images where all 64 squares are right. The positions in every suite were held out of training.
+
+| suite | images | **chessimg2pos v2** | [tsoj/Chess_diagram_to_FEN](https://github.com/tsoj/Chess_diagram_to_FEN) | fenshot | chessimg2pos v1 |
+|---|---:|---:|---:|---:|---:|
+| lichess renders, all themes and piece sets | 1000 | **100.0** | 95.4 | 94.0 | 43.5 |
+| chess.com renders | 301 | **100.0** | 100.0 | 100.0 | – |
+| mixed styles (highlights, arrows, coordinates, JPEG) | 1000 | **99.0** | 86.2 | 61.9 | – |
+| board inside a screenshot | 500 | **98.8** | 86.8 | 76.6 | – |
+| book diagrams | 300 | **97.7** | 86.7 | 37.0 | – |
+| hand-collected legacy boards | 100 | **100.0** | 97.0 | 47.0 | – |
+| phone photo of a screen or printed diagram | 400 | **98.0** | 55.0 | 2.0 | – |
+
+How the suites were made, so you can judge the numbers:
+
+- The lichess, mixed-style, screenshot, book and photo suites are rendered by our own data pipeline. v2 was trained on the same pipeline, using different positions. Other tools never saw these exact styles.
+- The photo suite is simulated: perspective, lighting, moiré, blur and noise over flat 2D boards. Photos of physical 3D sets are not supported yet.
+- A board counts as correct if it matches the truth from either side. v2 also detects when Black is at the bottom: 86–100% of the time, depending on the suite (book diagrams are hardest).
+- Speed: about 30 ms per image on a GPU (PyTorch) and about 90 ms on a CPU (ONNX Runtime).
+
+### Command line
+
+```bash
+pip install "chessimg2pos[onnx]"
+chessimg2pos screenshot.png                # prints the FEN
+chessimg2pos *.png --lichess               # FEN + lichess analysis link per file
+chessimg2pos photo.jpg --json              # orientation, confidence, board corners, ...
+```
+
+### Python
+
+```python
+from chessimg2pos.v2.weights import load_predictor
+
+pred = load_predictor()            # downloads the ONNX weights on first use
+r = pred.predict("photo.jpg")
+r["fen"]                    # 1Bk5/8/8/P4K2/3R4/n1P3r1/8/3Q4  (piece placement)
+r["orientation"]            # "black": Black is at the bottom of the image
+r["confidence"]             # probability of the least certain square
+r["board_corners"]          # where the board was found in the image
+```
+
+`load_predictor("model.pt")` uses PyTorch with a training checkpoint. `load_predictor("dir/")` uses a folder containing `board.onnx` and `locator.onnx`. The FEN always uses standard orientation, with White's side at the bottom, even when the image shows the board from Black's side.
+
+### In the browser
+
+`web/index.html` runs the same ONNX models with onnxruntime-web, entirely on the client, so no image is uploaded. Put `board.onnx` and `locator.onnx` in `web/models/` and serve the folder (`python -m http.server`). Then drop, paste or pick an image.
+
+### Training
+
+`tools/train_v2.py` trains the board model and the locator together from any sample stream: a folder with `manifest.jsonl` or your own Python sampler. `tools/export_onnx.py` exports a checkpoint and checks the ONNX output against PyTorch. `tools/benchmark/` holds the harness that produced the table above.
+
+The v1 API below (`predict_fen`, `ChessRecognitionTrainer`) is unchanged.
+
+---
+
 ## 🧪 Usage Example
 
 Check the demo usage notebook 
