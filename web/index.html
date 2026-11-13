@@ -206,7 +206,7 @@ async function run(img) {
   let rows = fromIdx(idx);
   const black = or[1] > 0.5;
   if (black) rows = rows.map(r => [...r].reverse().join("")).reverse();
-  const conf = idx.reduce((a, c, i) => a * P[i][c], 1);
+  const conf = Math.min(...idx.map((c, i) => P[i][c]));  // least certain square
   last = { placement: compress(rows.join("/")), rows, box, black, conf, ms: performance.now() - t0, img };
   show();
 }

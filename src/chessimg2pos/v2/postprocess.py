@@ -22,7 +22,8 @@ def decode(square_probs, orient_probs, corners, legality=True):
         "fen_as_drawn": drawn,
         "orientation": "black" if black else "white",
         "orientation_confidence": float(max(orient_probs)),
-        "confidence": float(np.prod(square_probs[np.arange(64), idx])),
+        # the least certain square: a board is only as right as its worst square
+        "confidence": float(square_probs[np.arange(64), idx].min()),
         "board_corners": [[float(x), float(y)] for x, y in corners],
         "legality_changes": changed,
     }
