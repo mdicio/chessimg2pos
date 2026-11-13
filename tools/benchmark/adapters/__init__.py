@@ -9,9 +9,11 @@ Register new adapters in ADAPTERS.
 from .chessimg2pos_adapter import Chessimg2posAdapter
 from .tsoj_adapter import TsojAdapter
 from .fenshot_adapter import FenshotAdapter
+from .chessimg2pos_v2_adapter import Chessimg2posV2Adapter
 
 ADAPTERS = {
     "chessimg2pos": Chessimg2posAdapter,
     "tsoj": TsojAdapter,
     "fenshot": FenshotAdapter,
+    "chessimg2pos_v2": Chessimg2posV2Adapter,
 }

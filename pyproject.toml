@@ -40,6 +40,12 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+onnx = ["onnxruntime>=1.17"]
+
+[project.scripts]
+chessimg2pos = "chessimg2pos.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/mdicio/chessimg2pos"
 Repository = "https://github.com/mdicio/chessimg2pos"
