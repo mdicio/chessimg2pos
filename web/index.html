@@ -179,10 +179,7 @@ function fix(P, lock = 0.97) {
   for (const king of [K, k]) {
     const sqs = idx.map((c, s) => c === king ? s : -1).filter(s => s >= 0);
     if (sqs.length > 1) { sqs.sort((a, b) => P[b][king] - P[a][king]); sqs.slice(1).forEach(s => demote(s, [king])); }
-    else if (!sqs.length) {
-      const cand = [...Array(64).keys()].filter(s => P[s][idx[s]] < lock).sort((a, b) => P[b][king] - P[a][king]);
-      if (cand.length && P[cand[0]][king] > 0.02) idx[cand[0]] = king;
-    }
+    // a missing king is never invented: teaching diagrams often omit kings
   }
   const sides = [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]];
   sides.forEach((side, i) => {

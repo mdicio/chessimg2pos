@@ -4,7 +4,7 @@ The network classifies all 64 squares jointly, but it can still output
 boards no position can have. When it does, and only for squares it was not
 already sure about, swap in the next most likely piece:
 
-- exactly one white king and one black king
+- at most one white king and one black king
 - no pawns on the first or last rank (true for either orientation)
 - at most 8 pawns and 16 pieces per side
 
@@ -51,12 +51,7 @@ def fix(probs, lock=0.97):
             squares.sort(key=lambda s: -probs[s, king])
             for s in squares[1:]:
                 _demote(probs, idx, s, {king}, lock)
-        elif not squares:
-            cand = [s for s in np.argsort(-probs[:, king]) if probs[s, idx[s]] < lock]
-            if cand and probs[cand[0], king] > 0.02:
-                others = [s for s in range(64) if idx[s] == king]
-                if not others:
-                    idx[cand[0]] = king
+        # a missing king is never invented: teaching diagrams often omit kings
 
     # counts per side
     for side, pawn in ((WHITE, P), (BLACK, p)):
