@@ -100,6 +100,13 @@ class StreamDataset(torch.utils.data.IterableDataset):
     def __iter__(self):
         info = torch.utils.data.get_worker_info()
         wid = info.id if info else 0
+        if info:  # one thread per worker: N workers x M library threads thrash the CPU
+            torch.set_num_threads(1)
+            try:
+                import cv2
+                cv2.setNumThreads(1)
+            except ImportError:
+                pass
         sampler = self.factory(self.seed, wid)
         rng = random.Random(self.seed * 7919 + wid)
         while True:
