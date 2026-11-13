@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>chessimg2pos</title>
+<meta name="description" content="Chess image to FEN in your browser. Paste a screenshot of a chess board; nothing is uploaded.">
+<style>
+  :root { --bg:#f6f5f2; --fg:#1d1d1b; --muted:#6b6a66; --card:#ffffff; --line:#dedcd6; --accent:#2f6f4f; --light:#eeeed2; --dark:#769656; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#161512; --fg:#ecebe7; --muted:#a3a19b; --card:#22211e; --line:#3a3833; --accent:#7fc29b; } }
+  :root[data-theme="dark"] { --bg:#161512; --fg:#ecebe7; --muted:#a3a19b; --card:#22211e; --line:#3a3833; --accent:#7fc29b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: var(--muted); }
+  #drop { border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px; text-align: center; background: var(--card); cursor: pointer; }
+  #drop.over { border-color: var(--accent); }
+  #drop small { color: var(--muted); display:block; margin-top:6px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+  .card h2 { font-size: .95rem; margin: 0 0 10px; color: var(--muted); font-weight: 600; }
+  canvas { max-width: 100%; height: auto; display: block; }
+  #fen { font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; padding: 8px 10px; background: var(--bg); border-radius: 8px; border:1px solid var(--line); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  button, a.btn { font: inherit; font-size: .9rem; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; text-decoration: none; }
+  a.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .meta { color: var(--muted); font-size: .85rem; margin-top: 8px; }
+  #board { display:grid; grid-template-columns: repeat(8, 1fr); aspect-ratio: 1; border-radius: 6px; overflow: hidden; width: 100%; max-width: 420px; }
+  #board div { display:flex; align-items:center; justify-content:center; font-size: clamp(18px, 5vw, 40px); line-height: 1; user-select: none; }
+  #board .l { background: var(--light); } #board .d { background: var(--dark); }
+  #board .w { color:#fff; text-shadow: 0 0 2px #000, 0 0 1px #000; } #board .b { color:#111; }
+  #status { margin-top: 12px; color: var(--muted); min-height: 1.5em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>chessimg2pos</h1>
+  <p class="sub">Chess image to FEN, running entirely in your browser. Nothing is uploaded.</p>
+  <div id="drop" tabindex="0">Drop, paste (Ctrl+V) or click to choose a chess board image
+    <small>Screenshots from lichess, chess.com, books, diagrams. The board is found automatically.</small>
+    <input id="file" type="file" accept="image/*" hidden>
+  </div>
+  <div id="status">Loading models…</div>
+  <div class="grid" id="out" hidden>
+    <div class="card"><h2>Input (detected board outlined)</h2><canvas id="view"></canvas></div>
+    <div class="card"><h2>Position</h2>
+      <div id="board"></div>
+      <div class="row" style="margin-top:12px"><div id="fen" style="flex:1"></div></div>
+      <div class="row">
+        <button id="copy">Copy FEN</button>
+        <a class="btn primary" id="lichess" target="_blank" rel="noopener">Analyse on lichess</a>
+        <button id="turn">White to move</button>
+      </div>
+      <div class="meta" id="meta"></div>
+    </div>
+  </div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
+<script>
+const MODEL_BASE = new URLSearchParams(location.search).get("models") || "models/";
+const BOARD = 256, LOC = 320;
+const MEAN = [0.485, 0.456, 0.406], STD = [0.229, 0.224, 0.225];
+const CLASSES = "1KQRBNPkqrbnp";
+const GLYPH = {K:"♚",Q:"♛",R:"♜",B:"♝",N:"♞",P:"♟",k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"};
+let boardSess, locSess, last = null, side = "w";
+const $ = id => document.getElementById(id);
+
+ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 1);
+(async () => {
+  try {
+    [boardSess, locSess] = await Promise.all([
+      ort.InferenceSession.create(MODEL_BASE + "board.onnx"),
+      ort.InferenceSession.create(MODEL_BASE + "locator.onnx")]);
+    $("status").textContent = "Ready.";
+  } catch (e) { $("status").textContent = "Could not load models: " + e.message; }
+})();
+
+function toTensor(canvas, size) {
+  const d = canvas.getContext("2d").getImageData(0, 0, size, size).data;
+  const out = new Float32Array(3 * size * size), n = size * size;
+  for (let i = 0; i < n; i++)
+    for (let c = 0; c < 3; c++) out[c * n + i] = (d[4 * i + c] / 255 - MEAN[c]) / STD[c];
+  return new ort.Tensor("float32", out, [1, 3, size, size]);
+}
+function canvasOf(size) { const c = document.createElement("canvas"); c.width = c.height = size; const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.fillStyle = "#000"; g.fillRect(0, 0, size, size); return c; }
+
+// draw source rect [x0,y0,x1,y1] of img into a size x size canvas; parts outside the image stay black
+function cropTo(img, box, size) {
+  const c = canvasOf(size), g = c.getContext("2d");
+  const [x0, y0, x1, y1] = box, sx = size / (x1 - x0), sy = size / (y1 - y0);
+  const cx0 = Math.max(0, x0), cy0 = Math.max(0, y0), cx1 = Math.min(img.width, x1), cy1 = Math.min(img.height, y1);
+  if (cx1 > cx0 && cy1 > cy0)
+    g.drawImage(img, cx0, cy0, cx1 - cx0, cy1 - cy0, (cx0 - x0) * sx, (cy0 - y0) * sy, (cx1 - cx0) * sx, (cy1 - cy0) * sy);
+  return c;
+}
+async function locOnce(img, region) {
+  const [rx0, ry0, rx1, ry1] = region, w = rx1 - rx0, h = ry1 - ry0, s = Math.max(w, h);
+  const c = cropTo(img, [rx0, ry0, rx0 + s, ry0 + s], LOC);
+  // black padding to the right/bottom, like the Python letterbox
+  const g = c.getContext("2d"); g.fillStyle = "#000";
+  g.fillRect(w / s * LOC, 0, LOC, LOC); g.fillRect(0, h / s * LOC, LOC, LOC);
+  const r = await locSess.run({ image: toTensor(c, LOC) });
+  const b = r.box.data;
+  return [rx0 + b[0] * s, ry0 + b[1] * s, rx0 + b[2] * s, ry0 + b[3] * s];
+}
+async function locate(img) {
+  const W = img.width, H = img.height;
+  const b = await locOnce(img, [0, 0, W, H]);
+  const bw = b[2] - b[0], bh = b[3] - b[1];
+  let r = [Math.max(0, Math.floor(b[0] - .1 * bw)), Math.max(0, Math.floor(b[1] - .1 * bh)),
+           Math.min(W, Math.floor(b[2] + .1 * bw)), Math.min(H, Math.floor(b[3] + .1 * bh))];
+  if (r[2] - r[0] < 32 || r[3] - r[1] < 32) r = [0, 0, W, H];
+  return locOnce(img, r);
+}
+function softmax(a, off, n) { let m = -1e9; for (let i = 0; i < n; i++) m = Math.max(m, a[off + i]);
+  let s = 0; const o = new Array(n); for (let i = 0; i < n; i++) { o[i] = Math.exp(a[off + i] - m); s += o[i]; }
+  return o.map(v => v / s); }
+
+// legality step (mirror of chessimg2pos/v2/legality.py)
+function fix(P, lock = 0.97) {
+  const idx = P.map(p => p.indexOf(Math.max(...p)));
+  const K = 1, k = 7, PW = 6, PB = 12;
+  const demote = (sq, banned) => { if (P[sq][idx[sq]] >= lock) return;
+    const order = [...P[sq].keys()].sort((a, b) => P[sq][b] - P[sq][a]);
+    for (const c of order) if (!banned.includes(c)) { idx[sq] = c; return; } };
+  for (const sq of [...Array(8).keys(), ...Array.from({length: 8}, (_, i) => 56 + i)])
+    if (idx[sq] === PW || idx[sq] === PB) demote(sq, [PW, PB]);
+  for (const king of [K, k]) {
+    const sqs = idx.map((c, s) => c === king ? s : -1).filter(s => s >= 0);
+    if (sqs.length > 1) { sqs.sort((a, b) => P[b][king] - P[a][king]); sqs.slice(1).forEach(s => demote(s, [king])); }
+    else if (!sqs.length) {
+      const cand = [...Array(64).keys()].filter(s => P[s][idx[s]] < lock).sort((a, b) => P[b][king] - P[a][king]);
+      if (cand.length && P[cand[0]][king] > 0.02) idx[cand[0]] = king;
+    }
+  }
+  const sides = [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]];
+  sides.forEach((side, i) => {
+    const pawn = i ? PB : PW;
+    const pawns = idx.map((c, s) => c === pawn ? s : -1).filter(s => s >= 0).sort((a, b) => P[a][pawn] - P[b][pawn]);
+    pawns.slice(0, Math.max(0, pawns.length - 8)).forEach(s => demote(s, [pawn]));
+    const pcs = idx.map((c, s) => side.includes(c) ? s : -1).filter(s => s >= 0).sort((a, b) => P[a][idx[a]] - P[b][idx[b]]);
+    pcs.slice(0, Math.max(0, pcs.length - 16)).forEach(s => demote(s, side));
+  });
+  return idx;
+}
+const compress = s => s.replace(/1{2,8}/g, m => String(m.length));
+function fromIdx(idx) { let rows = []; for (let r = 0; r < 8; r++) rows.push(idx.slice(r * 8, r * 8 + 8).map(i => CLASSES[i]).join("")); return rows; }
+
+async function run(img) {
+  if (!boardSess) { $("status").textContent = "Models are still loading…"; return; }
+  $("status").textContent = "Reading board…";
+  const t0 = performance.now();
+  const box = await locate(img);
+  const r = await boardSess.run({ board: toTensor(cropTo(img, box, BOARD), BOARD) });
+  const sq = r.squares.data, or = softmax(r.orientation.data, 0, 2);
+  const P = []; for (let i = 0; i < 64; i++) P.push(softmax(sq, i * 13, 13));
+  const idx = fix(P);
+  let rows = fromIdx(idx);
+  const black = or[1] > 0.5;
+  if (black) rows = rows.map(r => [...r].reverse().join("")).reverse();
+  const conf = idx.reduce((a, c, i) => a * P[i][c], 1);
+  last = { placement: compress(rows.join("/")), rows, box, black, conf, ms: performance.now() - t0, img };
+  show();
+}
+function show() {
+  const { placement, rows, box, black, conf, ms, img } = last;
+  const fen = `${placement} ${side} - - 0 1`;
+  $("fen").textContent = fen;
+  $("lichess").href = "https://lichess.org/analysis/" + fen.replace(/ /g, "_");
+  $("meta").textContent = `Bottom side: ${black ? "Black" : "White"} · confidence ${(100 * conf).toFixed(1)}% · ${ms.toFixed(0)} ms`;
+  const b = $("board"); b.innerHTML = "";
+  rows.forEach((row, r) => [...row].forEach((ch, c) => {
+    const d = document.createElement("div"); d.className = (r + c) % 2 ? "d" : "l";
+    if (ch !== "1") { d.textContent = GLYPH[ch]; d.classList.add(ch === ch.toUpperCase() ? "w" : "b"); }
+    b.appendChild(d); }));
+  const v = $("view"); v.width = img.width; v.height = img.height;
+  const g = v.getContext("2d"); g.drawImage(img, 0, 0);
+  g.strokeStyle = "#e0218a"; g.lineWidth = Math.max(2, img.width / 200);
+  g.strokeRect(box[0], box[1], box[2] - box[0], box[3] - box[1]);
+  $("out").hidden = false; $("status").textContent = "";
+}
+function loadFile(f) { if (!f || !f.type.startsWith("image/")) return;
+  const im = new Image(); im.onload = () => run(im); im.src = URL.createObjectURL(f); }
+const drop = $("drop");
+drop.onclick = () => $("file").click();
+$("file").onchange = e => loadFile(e.target.files[0]);
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); loadFile(e.dataTransfer.files[0]); };
+window.addEventListener("paste", e => { for (const it of e.clipboardData.items) if (it.type.startsWith("image/")) loadFile(it.getAsFile()); });
+$("copy").onclick = () => navigator.clipboard.writeText($("fen").textContent);
+$("turn").onclick = () => { side = side === "w" ? "b" : "w"; $("turn").textContent = side === "w" ? "White to move" : "Black to move"; if (last) show(); };
+</script>
+</body>
+</html>

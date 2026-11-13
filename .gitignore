@@ -187,3 +187,7 @@ cython_debug/
 .pypirc
 # benchmark outputs
 bench_results/
+
+# web demo (models are release assets, not committed)
+!web/index.html
+web/models/
