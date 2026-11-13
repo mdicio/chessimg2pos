@@ -5,7 +5,9 @@ import torch
 
 from .model import BoardNet, LocatorNet
 from .postprocess import decode
-from .preprocess import crop_board, letterbox, load, refine_crop, to_array
+from .predictor_common import as_corners
+from .preprocess import (board_input, box_to_corners, corners_to_box, letterbox, load, refine_crop,
+                         to_array)
 
 
 def load_checkpoint(path, device="cpu"):
@@ -34,26 +36,28 @@ class PredictorV2:
         xs, sides = zip(*(letterbox(i) for i in imgs))
         x = torch.from_numpy(np.stack([to_array(v) for v in xs])).to(self.device)
         out = self.loc(x).float().cpu().numpy()
-        return [list(o * s) for o, s in zip(out, sides)]
+        return [as_corners(o * s) for o, s in zip(out, sides)]
 
     def locate(self, imgs):
-        """Two passes: rough box on the whole image, then refine on a crop
-        around it."""
-        crops, offs = zip(*(refine_crop(i, b) for i, b in zip(imgs, self._loc(imgs))))
+        """Board corners (TL, TR, BR, BL). Two passes: rough on the whole
+        image, then refined on a crop around the first guess."""
+        crops, offs = zip(*(refine_crop(i, corners_to_box(c)) for i, c in zip(imgs, self._loc(imgs))))
         refined = self._loc(list(crops))
-        return [[b[0] + ox, b[1] + oy, b[2] + ox, b[3] + oy] for b, (ox, oy) in zip(refined, offs)]
+        return [[[x + ox, y + oy] for x, y in c] for c, (ox, oy) in zip(refined, offs)]
 
     @torch.no_grad()
     def predict_batch(self, images, boxes=None):
         imgs = [load(i) for i in images]
         if boxes is None:
-            boxes = self.locate(imgs) if self.locate_boards else [[0, 0, *i.size] for i in imgs]
-        x = torch.from_numpy(np.stack([to_array(crop_board(i, b)) for i, b in zip(imgs, boxes)])).to(self.device)
+            quads = self.locate(imgs) if self.locate_boards else [box_to_corners([0, 0, *i.size]) for i in imgs]
+        else:
+            quads = [box_to_corners(b) if len(b) == 4 and not hasattr(b[0], "__len__") else b for b in boxes]
+        x = torch.from_numpy(np.stack([to_array(board_input(i, q)) for i, q in zip(imgs, quads)])).to(self.device)
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=self.device == "cuda"):
             sq, ori = self.board(x)
         sq = torch.softmax(sq.float(), -1).cpu().numpy()
         ori = torch.softmax(ori.float(), -1).cpu().numpy()
-        return [decode(s, o, b, self.legality) for s, o, b in zip(sq, ori, boxes)]
+        return [decode(s, o, b, self.legality) for s, o, b in zip(sq, ori, quads)]
 
     def predict(self, image, box=None):
         return self.predict_batch([image], None if box is None else [box])[0]

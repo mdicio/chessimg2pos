@@ -10,7 +10,7 @@ def softmax(x, axis=-1):
     return e / e.sum(axis=axis, keepdims=True)
 
 
-def decode(square_probs, orient_probs, box, legality=True):
+def decode(square_probs, orient_probs, corners, legality=True):
     if legality:
         idx, changed = fix(square_probs)
     else:
@@ -23,6 +23,6 @@ def decode(square_probs, orient_probs, box, legality=True):
         "orientation": "black" if black else "white",
         "orientation_confidence": float(max(orient_probs)),
         "confidence": float(np.prod(square_probs[np.arange(64), idx])),
-        "board_box": [float(v) for v in box],
+        "board_corners": [[float(x), float(y)] for x, y in corners],
         "legality_changes": changed,
     }

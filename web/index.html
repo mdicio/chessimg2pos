@@ -102,18 +102,67 @@ async function locOnce(img, region) {
   const g = c.getContext("2d"); g.fillStyle = "#000";
   g.fillRect(w / s * LOC, 0, LOC, LOC); g.fillRect(0, h / s * LOC, LOC, LOC);
   const r = await locSess.run({ image: toTensor(c, LOC) });
-  const b = r.box.data;
-  return [rx0 + b[0] * s, ry0 + b[1] * s, rx0 + b[2] * s, ry0 + b[3] * s];
+  const v = Array.from(r.box.data).map(x => x * s);
+  const q = v.length === 4 ? [[v[0], v[1]], [v[2], v[1]], [v[2], v[3]], [v[0], v[3]]]
+                           : [[v[0], v[1]], [v[2], v[3]], [v[4], v[5]], [v[6], v[7]]];
+  return q.map(([x, y]) => [x + rx0, y + ry0]);
 }
+const bbox = q => [Math.min(...q.map(p => p[0])), Math.min(...q.map(p => p[1])), Math.max(...q.map(p => p[0])), Math.max(...q.map(p => p[1]))];
 async function locate(img) {
   const W = img.width, H = img.height;
-  const b = await locOnce(img, [0, 0, W, H]);
+  const b = bbox(await locOnce(img, [0, 0, W, H]));
   const bw = b[2] - b[0], bh = b[3] - b[1];
   let r = [Math.max(0, Math.floor(b[0] - .1 * bw)), Math.max(0, Math.floor(b[1] - .1 * bh)),
            Math.min(W, Math.floor(b[2] + .1 * bw)), Math.min(H, Math.floor(b[3] + .1 * bh))];
   if (r[2] - r[0] < 32 || r[3] - r[1] < 32) r = [0, 0, W, H];
   return locOnce(img, r);
 }
+function axisAligned(q, tol = 0.006) {
+  const [x0, y0, x1, y1] = bbox(q), side = Math.max(x1 - x0, y1 - y0, 1e-6);
+  const rect = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  return q.every((p, i) => Math.abs(p[0] - rect[i][0]) / side <= tol && Math.abs(p[1] - rect[i][1]) / side <= tol);
+}
+function solve(A, b) {  // Gaussian elimination, 8x8
+  const n = b.length;
+  for (let i = 0; i < n; i++) {
+    let m = i; for (let r = i + 1; r < n; r++) if (Math.abs(A[r][i]) > Math.abs(A[m][i])) m = r;
+    [A[i], A[m]] = [A[m], A[i]]; [b[i], b[m]] = [b[m], b[i]];
+    for (let r = i + 1; r < n; r++) { const f = A[r][i] / A[i][i]; for (let c = i; c < n; c++) A[r][c] -= f * A[i][c]; b[r] -= f * b[i]; }
+  }
+  const x = new Array(n);
+  for (let i = n - 1; i >= 0; i--) { let s = b[i]; for (let c = i + 1; c < n; c++) s -= A[i][c] * x[c]; x[i] = s / A[i][i]; }
+  return x;
+}
+// perspective-warp the quad (TL, TR, BR, BL) into a size x size canvas (mirror of preprocess.warp_board)
+function warpTo(img, q, size) {
+  const sides = q.map((p, i) => Math.hypot(p[0] - q[(i + 1) % 4][0], p[1] - q[(i + 1) % 4][1]));
+  const f = Math.max(1, Math.min(...sides) / (1.5 * size));
+  const sw = Math.max(1, Math.round(img.width / f)), sh = Math.max(1, Math.round(img.height / f));
+  const src = document.createElement("canvas"); src.width = sw; src.height = sh;
+  const sg = src.getContext("2d"); sg.imageSmoothingQuality = "high"; sg.drawImage(img, 0, 0, sw, sh);
+  const sd = sg.getImageData(0, 0, sw, sh).data;
+  const qs = q.map(([x, y]) => [x / f, y / f]), dst = [[0, 0], [size, 0], [size, size], [0, size]];
+  const A = [], b = [];
+  dst.forEach(([u, v], i) => { const [x, y] = qs[i];
+    A.push([u, v, 1, 0, 0, 0, -u * x, -v * x]); b.push(x);
+    A.push([0, 0, 0, u, v, 1, -u * y, -v * y]); b.push(y); });
+  const [a0, a1, a2, a3, a4, a5, a6, a7] = solve(A, b);
+  const out = canvasOf(size), og = out.getContext("2d"), od = og.createImageData(size, size);
+  for (let v = 0; v < size; v++) for (let u = 0; u < size; u++) {
+    const uu = u + .5, vv = v + .5, w = a6 * uu + a7 * vv + 1;
+    const x = (a0 * uu + a1 * vv + a2) / w - .5, y = (a3 * uu + a4 * vv + a5) / w - .5;
+    const o = 4 * (v * size + u); od.data[o + 3] = 255;
+    const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+    if (x0 < 0 || y0 < 0 || x0 + 1 >= sw || y0 + 1 >= sh) continue;
+    for (let c = 0; c < 3; c++) {
+      const i00 = 4 * (y0 * sw + x0) + c, i10 = i00 + 4, i01 = i00 + 4 * sw, i11 = i01 + 4;
+      od.data[o + c] = (sd[i00] * (1 - fx) + sd[i10] * fx) * (1 - fy) + (sd[i01] * (1 - fx) + sd[i11] * fx) * fy;
+    }
+  }
+  og.putImageData(od, 0, 0);
+  return out;
+}
+const boardInput = (img, q) => axisAligned(q) ? cropTo(img, bbox(q), BOARD) : warpTo(img, q, BOARD);
 function softmax(a, off, n) { let m = -1e9; for (let i = 0; i < n; i++) m = Math.max(m, a[off + i]);
   let s = 0; const o = new Array(n); for (let i = 0; i < n; i++) { o[i] = Math.exp(a[off + i] - m); s += o[i]; }
   return o.map(v => v / s); }
@@ -153,7 +202,7 @@ async function run(img) {
   $("status").textContent = "Reading board…";
   const t0 = performance.now();
   const box = await locate(img);
-  const r = await boardSess.run({ board: toTensor(cropTo(img, box, BOARD), BOARD) });
+  const r = await boardSess.run({ board: toTensor(boardInput(img, box), BOARD) });
   const sq = r.squares.data, or = softmax(r.orientation.data, 0, 2);
   const P = []; for (let i = 0; i < 64; i++) P.push(softmax(sq, i * 13, 13));
   const idx = fix(P);
@@ -178,7 +227,7 @@ function show() {
   const v = $("view"); v.width = img.width; v.height = img.height;
   const g = v.getContext("2d"); g.drawImage(img, 0, 0);
   g.strokeStyle = "#e0218a"; g.lineWidth = Math.max(2, img.width / 200);
-  g.strokeRect(box[0], box[1], box[2] - box[0], box[3] - box[1]);
+  g.beginPath(); box.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.stroke();
   $("out").hidden = false; $("status").textContent = "";
 }
 function loadFile(f) { if (!f || !f.type.startsWith("image/")) return;

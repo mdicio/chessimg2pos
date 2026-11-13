@@ -58,14 +58,18 @@ class BoardNet(nn.Module):
 
 
 class LocatorNet(nn.Module):
-    def __init__(self, backbone="resnet18", pretrained=True):
+    """outputs=4: box [x0, y0, x1, y1]; outputs=8: corners TL, TR, BR, BL
+    (of the board as drawn) as [x, y] pairs. Normalised to the letterbox."""
+
+    def __init__(self, backbone="resnet18", pretrained=True, outputs=4):
         super().__init__()
-        self.config = dict(backbone=backbone)
+        self.config = dict(backbone=backbone, outputs=outputs)
+        self.outputs = outputs
         self.features, c = _backbone(backbone, pretrained)
         self.reduce = nn.Sequential(nn.Conv2d(c, 64, 1), nn.BatchNorm2d(64), nn.ReLU())
         n = (LOC_SIZE // 32) ** 2 * 64
         self.head = nn.Sequential(nn.Flatten(), nn.Linear(n, 512), nn.ReLU(), nn.Dropout(0.1),
-                                  nn.Linear(512, 4))
+                                  nn.Linear(512, outputs))
 
     def forward(self, x):
         return torch.sigmoid(self.head(self.reduce(self.features(x)))) * 1.2 - 0.1

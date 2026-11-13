@@ -81,14 +81,17 @@ def main():
     ap.add_argument("--eval-every", type=int, default=5000)
     ap.add_argument("--out", default="runs/v2")
     ap.add_argument("--resume")
+    ap.add_argument("--fresh-schedule", action="store_true", help="resume weights only; new LR schedule")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--corners", action="store_true", help="locator predicts 4 corners (perspective photos)")
+    ap.add_argument("--warmup", type=int, default=1500)
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     torch.manual_seed(args.seed)
     dev = "cuda"
 
     board = BoardNet(args.backbone).to(dev)
-    loc = LocatorNet().to(dev)
+    loc = LocatorNet(outputs=8 if args.corners else 4).to(dev)
     params = [
         {"params": board.features.parameters(), "lr": args.lr * 0.5},
         {"params": [p for n, p in board.named_parameters() if not n.startswith("features.")], "lr": args.lr},
@@ -99,15 +102,18 @@ def main():
     step = 0
     if args.resume:
         ck = torch.load(args.resume, map_location=dev, weights_only=False)
-        board.load_state_dict(ck["board"]); loc.load_state_dict(ck["locator"])
-        if "opt" in ck:
+        board.load_state_dict(ck["board"])
+        lsd = {k: v for k, v in ck["locator"].items() if loc.state_dict()[k].shape == v.shape}
+        loc.load_state_dict(lsd, strict=False)  # a box locator can seed a corner locator
+        same = len(lsd) == len(ck["locator"])
+        if "opt" in ck and same and not args.fresh_schedule:
             opt.load_state_dict(ck["opt"])
-        step = ck.get("step", 0)
+            step = ck.get("step", 0)
 
     dl = torch.utils.data.DataLoader(
-        StreamDataset(factory_from(args.sampler), seed=args.seed + step), batch_size=args.batch,
+        StreamDataset(factory_from(args.sampler), seed=args.seed + step, corners_out=args.corners), batch_size=args.batch,
         num_workers=args.workers, persistent_workers=True, prefetch_factor=4, pin_memory=True)
-    warm = 1500
+    warm = args.warmup
     t0, seen = time.time(), 0
     stats = {"sq": 0.0, "ori": 0.0, "loc": 0.0, "acc": 0.0, "n": 0}
     log = open(os.path.join(args.out, "log.jsonl"), "a")

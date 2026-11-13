@@ -5,7 +5,8 @@ from PIL import Image
 from chessimg2pos.v2.fen import CLASSES, compress, expand, flip, from_indices, to_indices
 from chessimg2pos.v2.legality import fix
 from chessimg2pos.v2.postprocess import decode
-from chessimg2pos.v2.preprocess import crop_board, letterbox, refine_crop, to_array
+from chessimg2pos.v2.preprocess import (board_input, box_to_corners, crop_board, is_axis_aligned, letterbox,
+                                        refine_crop, to_array, warp_board)
 
 START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
 
@@ -50,7 +51,7 @@ def test_legality_fixes_uncertain_squares():
 
 def test_decode_orientation():
     drawn = flip(START)
-    r = decode(onehot(drawn), np.array([0.1, 0.9]), [0, 0, 8, 8])
+    r = decode(onehot(drawn), np.array([0.1, 0.9]), [[0, 0], [8, 0], [8, 8], [0, 8]])
     assert r["fen"] == START and r["orientation"] == "black" and r["fen_as_drawn"] == drawn
 
 
@@ -63,3 +64,17 @@ def test_preprocess_shapes():
     assert b.size == (256, 256) and b.getpixel((0, 0)) == (0, 0, 0)
     crop, (ox, oy) = refine_crop(img, [50, 50, 150, 150])
     assert (ox, oy) == (40, 40) and crop.size == (120, 120)
+
+
+def test_perspective_warp_matches_crop():
+    # a 2x2 checker image: warping its exact corners must reproduce it
+    img = Image.new("RGB", (200, 200), (255, 255, 255))
+    img.paste((0, 0, 0), (100, 0, 200, 100))
+    img.paste((0, 0, 0), (0, 100, 100, 200))
+    q = box_to_corners([0, 0, 200, 200])
+    assert is_axis_aligned(q)
+    w = warp_board(img, q, size=64)
+    assert w.getpixel((10, 10)) == (255, 255, 255) and w.getpixel((50, 10)) == (0, 0, 0)
+    skew = [[0, 0], [200, 10], [200, 200], [0, 190]]
+    assert not is_axis_aligned(skew)
+    assert board_input(img, skew).size == (256, 256)

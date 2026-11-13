@@ -15,7 +15,7 @@ import torch
 from PIL import Image
 
 from .fen import flip, to_indices
-from .preprocess import crop_board, letterbox, to_array  # noqa: F401
+from .preprocess import box_to_corners, crop_board, is_axis_aligned, letterbox, to_array, warp_board  # noqa: F401
 
 def to_tensor(img):
     return torch.from_numpy(to_array(img))
@@ -42,17 +42,28 @@ def jitter_box(box, rng, amount):
             x1 + rng.uniform(-amount, amount) * w, y1 + rng.uniform(-amount, amount) * h]
 
 
-def make_example(img, meta, rng, train=True):
+def make_example(img, meta, rng, train=True, corners_out=False):
     """-> board tensor, square labels (64,), orientation label, locator
-    tensor, normalised box (4,)."""
+    tensor, locator target: normalised box (4,) or corners (8,) when
+    corners_out. meta may carry "board_corners" (TL, TR, BR, BL of the board
+    as drawn) for perspective photos; otherwise the box is used."""
     box = meta["board_box"]
-    if train:
-        amt = rng.choice([0.0, 0.01, 0.02, 0.035])
-        cbox = jitter_box(box, rng, amt)
-        resample = rng.choice([Image.BILINEAR, Image.BICUBIC, Image.LANCZOS, Image.BOX])
+    corners = meta.get("board_corners") or box_to_corners(box)
+    if is_axis_aligned(corners):
+        if train:
+            amt = rng.choice([0.0, 0.01, 0.02, 0.035])
+            cbox = jitter_box(box, rng, amt)
+            resample = rng.choice([Image.BILINEAR, Image.BICUBIC, Image.LANCZOS, Image.BOX])
+        else:
+            cbox, resample = box, Image.BILINEAR
+        board = crop_board(img, cbox, resample=resample)
     else:
-        cbox, resample = box, Image.BILINEAR
-    board = crop_board(img, cbox, resample=resample)
+        q = corners
+        if train:
+            side = max(box[2] - box[0], box[3] - box[1])
+            amt = rng.choice([0.0, 0.01, 0.02, 0.03]) * side
+            q = [[x + rng.uniform(-amt, amt), y + rng.uniform(-amt, amt)] for x, y in corners]
+        board = warp_board(img, q)
     if train and rng.random() < 0.08:
         board = board.convert("L").convert("RGB")
     drawn = meta["fen"] if meta["orientation"] == "white" else flip(meta["fen"])
@@ -61,7 +72,7 @@ def make_example(img, meta, rng, train=True):
 
     # locator: random crop around the board sometimes, so it also sees
     # second-pass views (board filling most of the frame)
-    limg, lbox = img, list(box)
+    limg, ox, oy = img, 0, 0
     if train and rng.random() < 0.3:
         W, H = img.size
         bw, bh = box[2] - box[0], box[3] - box[1]
@@ -71,18 +82,20 @@ def make_example(img, meta, rng, train=True):
         cx1 = min(W, box[2] + m * bw * rng.uniform(0.3, 1.7))
         cy1 = min(H, box[3] + m * bh * rng.uniform(0.3, 1.7))
         if cx1 - cx0 > 32 and cy1 - cy0 > 32:
-            limg = img.crop((int(cx0), int(cy0), int(cx1), int(cy1)))
-            lbox = [box[0] - int(cx0), box[1] - int(cy0), box[2] - int(cx0), box[3] - int(cy0)]
+            limg, ox, oy = img.crop((int(cx0), int(cy0), int(cx1), int(cy1))), int(cx0), int(cy0)
     lb, side = letterbox(limg)
-    nbox = torch.tensor([v / side for v in lbox], dtype=torch.float32)
-    return to_tensor(board), sq, ori, to_tensor(lb), nbox
+    if corners_out:
+        target = [v for x, y in corners for v in ((x - ox) / side, (y - oy) / side)]
+    else:
+        target = [(box[0] - ox) / side, (box[1] - oy) / side, (box[2] - ox) / side, (box[3] - oy) / side]
+    return to_tensor(board), sq, ori, to_tensor(lb), torch.tensor(target, dtype=torch.float32)
 
 
 class StreamDataset(torch.utils.data.IterableDataset):
     """Wraps a sampler factory: factory(seed, worker_id) -> sampler."""
 
-    def __init__(self, factory, seed=0):
-        self.factory, self.seed = factory, seed
+    def __init__(self, factory, seed=0, corners_out=False):
+        self.factory, self.seed, self.corners_out = factory, seed, corners_out
 
     def __iter__(self):
         info = torch.utils.data.get_worker_info()
@@ -92,6 +105,6 @@ class StreamDataset(torch.utils.data.IterableDataset):
         while True:
             try:
                 img, meta = sampler.sample()
-                yield make_example(img, meta, rng)
+                yield make_example(img, meta, rng, corners_out=self.corners_out)
             except Exception as e:  # never kill a long run on one bad sample
                 print("sample error:", repr(e), flush=True)
