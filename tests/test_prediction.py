@@ -113,6 +113,57 @@ class TestPrediction(unittest.TestCase):
         self.assertIn("8", compressed)
         self.assertNotIn("11111111", compressed)
 
+    def test_default_fen_is_compressed_standard_fen(self):
+        """Default output must be real FEN: no runs of '1', digits 1-8 per rank sum to 8."""
+        from chessimg2pos.predictor import ChessPositionPredictor
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_path = os.path.join(tmpdir, "model.pt")
+            img_path = os.path.join(tmpdir, "board.png")
+            _save_dummy_model(model_path, "enhanced")
+            _make_synthetic_chessboard(img_path)
+            predictor = ChessPositionPredictor(
+                model_path=model_path, classifier="enhanced", fen_chars=FEN_CHARS
+            )
+            result = predictor.predict_chessboard(img_path)
+            self.assertEqual(result["fen_type"], "compressed")
+            for rank in result["fen"].split("/"):
+                self.assertNotIn("11", rank)
+                width = sum(int(c) if c.isdigit() else 1 for c in rank)
+                self.assertEqual(width, 8, result["fen"])
+
+    def test_expanded_and_legacy_standard_fen_type(self):
+        """fen_type='expanded' and legacy 'standard' return the 64-char format."""
+        import warnings
+
+        from chessimg2pos.predictor import ChessPositionPredictor
+        from chessimg2pos.utils import compressed_fen
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_path = os.path.join(tmpdir, "model.pt")
+            img_path = os.path.join(tmpdir, "board.png")
+            _save_dummy_model(model_path, "enhanced")
+            _make_synthetic_chessboard(img_path)
+            predictor = ChessPositionPredictor(
+                model_path=model_path, classifier="enhanced", fen_chars=FEN_CHARS
+            )
+            expanded = predictor.predict_chessboard(img_path, fen_type="expanded")
+            self.assertTrue(all(len(r) == 8 for r in expanded["fen"].split("/")))
+
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                legacy = predictor.predict_chessboard(img_path, fen_type="standard")
+            self.assertEqual(legacy["fen"], expanded["fen"])
+            self.assertTrue(
+                any(issubclass(w.category, DeprecationWarning) for w in caught)
+            )
+
+            default = predictor.predict_chessboard(img_path)
+            self.assertEqual(default["fen"], compressed_fen(expanded["fen"]))
+
+            with self.assertRaises(ValueError):
+                predictor.predict_chessboard(img_path, fen_type="bogus")
+
 
 if __name__ == "__main__":
     unittest.main()

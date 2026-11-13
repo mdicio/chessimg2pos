@@ -14,7 +14,7 @@ from .chessclassifier import (
 )
 from .constants import DEFAULT_CLASSIFIER, DEFAULT_FEN_CHARS, DEFAULT_USE_GRAYSCALE
 from matplotlib.gridspec import GridSpec
-from .utils import compressed_fen
+from .utils import compressed_fen, normalize_fen_type
 
 # Set up logging
 logging.basicConfig(
@@ -228,13 +228,18 @@ class ChessPositionPredictor:
         }
 
     def predict_chessboard(
-        self, image_path_or_object, return_tiles=False, fen_type="standard"
+        self, image_path_or_object, return_tiles=False, fen_type="compressed"
     ):
         """Predict chess position from an image file or PIL Image object
 
         Args:
             image_path_or_object: Path to the chessboard image file or PIL Image object
             return_tiles: Whether to return the detected tiles along with predictions
+            fen_type: "compressed" (default) returns standard FEN piece placement,
+                e.g. "8/8/8/4p1K1/2k1P3/8/8/8", as used by Lichess, chess.com and
+                python-chess. "expanded" returns one character per square with
+                "1" for empty squares, e.g. "11111111/...". The legacy value
+                "standard" is still accepted and means "expanded".
 
         Returns:
             dict: {
@@ -242,9 +247,11 @@ class ChessPositionPredictor:
                 'confidence': overall confidence,
                 'predictions': detailed predictions,
                 'tiles': tile images if return_tiles=True
-                'fen_type': fen notation style (standard or compressed)
+                'fen_type': fen notation style ("compressed" or "expanded")
             }
         """
+        fen_type = normalize_fen_type(fen_type)
+
         # Handle both file paths and PIL Image objects
         if isinstance(image_path_or_object, str):
             if not os.path.exists(image_path_or_object):
@@ -317,6 +324,7 @@ class ChessPositionPredictor:
             "fen": fen_out,
             "confidence": confidence,
             "predictions": predictions,
+            "fen_type": fen_type,
         }
 
         if return_tiles:

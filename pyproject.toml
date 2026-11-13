@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chessimg2pos"
-description = "Recognize chess positions from board images using deep learning"
+description = "Chess image to FEN: recognize chess positions from chessboard screenshots and diagrams using deep learning (PyTorch)"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-keywords = ["chess", "FEN", "deep learning", "PyTorch", "computer vision"]
+keywords = ["chess", "FEN", "image to FEN", "chess image to FEN", "chessboard recognition", "chess position recognition", "chess screenshot", "chess diagram", "chess vision", "lichess", "chess.com", "deep learning", "PyTorch", "CNN", "computer vision", "image recognition"]
 authors = [
   { name = "Marco Di Ciò", email = "marcodicio.md@gmail.com" }
 ]
@@ -25,6 +25,8 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
   "Topic :: Games/Entertainment :: Board Games",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Image Recognition",
+  "Operating System :: OS Independent",
   "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 dependencies = [
@@ -42,6 +44,8 @@ dynamic = ["version"]
 Homepage = "https://github.com/mdicio/chessimg2pos"
 Repository = "https://github.com/mdicio/chessimg2pos"
 Issues = "https://github.com/mdicio/chessimg2pos/issues"
+Documentation = "https://github.com/mdicio/chessimg2pos#readme"
+Changelog = "https://github.com/mdicio/chessimg2pos/releases"
 
 [tool.hatch.version]
 path = "src/chessimg2pos/_version.py"

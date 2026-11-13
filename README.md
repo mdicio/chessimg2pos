@@ -1,6 +1,35 @@
-# 🧠 Chessboard Recognizer (Convert your chess images to FEN positions with one click!)
+# chessimg2pos — Chess Image to FEN in Python
 
-This project uses a deep learning model implemented in PyTorch to recognize the positions of chess pieces on a chessboard image and convert it into [FEN](https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation) notation. This library introduces an easy and fast function to simply predict a fen from an image, it vastly increases prediction accuracy, encompassing a wide variety of chess image formats from different sources. For more advanced usage it also provides reusable components for training, inference, and data preparation.
+[![PyPI version](https://img.shields.io/pypi/v/chessimg2pos.svg)](https://pypi.org/project/chessimg2pos/)
+[![Python versions](https://img.shields.io/pypi/pyversions/chessimg2pos.svg)](https://pypi.org/project/chessimg2pos/)
+[![Downloads](https://static.pepy.tech/badge/chessimg2pos)](https://pepy.tech/project/chessimg2pos)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENCE)
+[![GitHub stars](https://img.shields.io/github/stars/mdicio/chessimg2pos?style=social)](https://github.com/mdicio/chessimg2pos)
+
+**Convert a chessboard image or screenshot into a FEN string with one line of Python.**
+
+`chessimg2pos` is a chess position recognition library: give it a picture of a 2D chessboard (a chess.com or lichess screenshot, a puzzle diagram, a book or website board image) and it returns the position in [FEN](https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation) notation, ready to paste into Lichess, Stockfish or `python-chess`. It uses a PyTorch CNN to classify all 64 squares, and a pretrained model downloads automatically on first use.
+
+```bash
+pip install chessimg2pos
+```
+
+```python
+from chessimg2pos import predict_fen
+print(predict_fen("screenshot.png"))
+```
+
+**Use cases:** analyse a position from a screenshot, digitise chess book diagrams, build chess bots and Discord/Telegram bots, generate training data, or convert chess puzzles into PGN/FEN datasets.
+
+### Features
+
+- 🖼️ **Image → FEN** with a single function call (`predict_fen`)
+- 🎯 Trained on many board themes and piece sets from different sites
+- ⚡ Pretrained weights downloaded automatically; runs on CPU or GPU
+- 🔧 Full training pipeline (`ChessRecognitionTrainer`) to fine-tune on your own board styles
+- 📊 Per-square confidence scores and prediction visualisation
+
+This library vastly increases prediction accuracy over earlier approaches across a wide variety of chess image formats. For more advanced usage it also provides reusable components for training, inference, and data preparation.
 
 Full credits to [linrock/chessboard-recognizer](https://github.com/linrock/chessboard-recognizer) for chess image data, preprocessing and basis for the training algorithm, originally a simple CNN architecture built on a no longer supported version of TensorFlow 2. This version transitions to PyTorch and vastly improves prediction accuracy on a wide variety of chess image formats.
 
@@ -23,8 +52,30 @@ print(fen)
 ### Output:
 
 ```text
-11111111/11111111/11111111/1111p1K1/11k1P111/11111111/11111111/11111111
+8/8/8/4p1K1/2k1P3/8/8/8
 ```
+
+That is standard FEN piece placement, so it works directly with Lichess, chess.com and `python-chess`:
+
+```python
+import chess
+from chessimg2pos import predict_fen
+
+fen = predict_fen("screenshot.png")
+print(f"https://lichess.org/analysis/{fen}")
+board = chess.Board(fen + " w - - 0 1")
+```
+
+Need one character per square instead (`1` = empty)? Pass `fen_type="expanded"`:
+
+```python
+predict_fen("screenshot.png", fen_type="expanded")
+# 11111111/11111111/11111111/1111p1K1/11k1P111/11111111/11111111/11111111
+```
+
+> **Changed in 0.2.0:** earlier versions returned the expanded format by default. `fen_type="standard"` still returns it, with a deprecation warning.
+
+Note: the image gives only piece placement. Side to move, castling rights and en passant are not in the picture, so add them yourself if needed (e.g. `fen + " w - - 0 1"`).
 
 ## 🖼️ Sample Results
 
@@ -35,7 +86,7 @@ print(fen)
 <img src="images/chess_image.png" width=240 />
 
 #### 🎯 Predicted FEN:
-`11111111/11111111/11111111/1111p1K1/11k1P111/11111111/11111111/11111111`
+`8/8/8/4p1K1/2k1P3/8/8/8`
 
 </div>
 ---
