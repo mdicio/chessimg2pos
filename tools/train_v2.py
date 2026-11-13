@@ -72,7 +72,8 @@ def evaluate(ck_path, suites, limit=None, locate=True):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sampler", action="append", required=True)
-    ap.add_argument("--eval", nargs="*", default=[])
+    ap.add_argument("--eval", nargs="*", default=[], help="suites reported during training (never used for selection)")
+    ap.add_argument("--val", nargs="*", default=[], help="validation suites: best.pt = best mean exact accuracy on these")
     ap.add_argument("--steps", type=int, default=60000)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--lr", type=float, default=4e-4)
@@ -114,6 +115,7 @@ def main():
         StreamDataset(factory_from(args.sampler), seed=args.seed + step, corners_out=args.corners), batch_size=args.batch,
         num_workers=args.workers, persistent_workers=True, prefetch_factor=4, pin_memory=True)
     warm = args.warmup
+    best = -1.0
     t0, seen = time.time(), 0
     stats = {"sq": 0.0, "ori": 0.0, "loc": 0.0, "acc": 0.0, "n": 0}
     log = open(os.path.join(args.out, "log.jsonl"), "a")
@@ -153,12 +155,23 @@ def main():
             torch.save({"board": board.state_dict(), "locator": loc.state_dict(),
                         "board_config": board.config, "locator_config": loc.config,
                         "opt": opt.state_dict(), "step": step}, path)
+            board.eval(); loc.eval()
+            if args.val:
+                v = evaluate(path, args.val)
+                score = sum(a for a, _ in v.values()) / len(v)
+                print("VAL", step, json.dumps(v), flush=True)
+                log.write(json.dumps({"step": step, "val": v, "val_score": score}) + "\n"); log.flush()
+                if score > best:
+                    best = score
+                    torch.save({"board": board.state_dict(), "locator": loc.state_dict(),
+                                "board_config": board.config, "locator_config": loc.config,
+                                "step": step, "val_score": score}, os.path.join(args.out, "best.pt"))
+                    print("new best", round(score, 3), flush=True)
             if args.eval:
-                board.eval(); loc.eval()
                 r = evaluate(path, args.eval, limit=500)
-                board.train(); loc.train()
                 print("EVAL", step, json.dumps(r), flush=True)
                 log.write(json.dumps({"step": step, "eval": r}) + "\n"); log.flush()
+            board.train(); loc.train()
     path = os.path.join(args.out, "final.pt")
     torch.save({"board": board.state_dict(), "locator": loc.state_dict(),
                 "board_config": board.config, "locator_config": loc.config, "step": step}, path)
