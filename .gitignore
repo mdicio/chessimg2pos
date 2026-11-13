@@ -185,3 +185,5 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+# benchmark outputs
+bench_results/
