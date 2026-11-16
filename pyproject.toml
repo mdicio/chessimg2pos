@@ -1,19 +1,19 @@
 [build-system]
-requires = ["hatchling>=1.26.3", "hatch-vcs"]
+requires = ["hatchling>=1.26.3"]
 build-backend = "hatchling.build"
 
 [project]
 name = "chessimg2pos"
-description = "Chess image to FEN: recognize chess positions from chessboard screenshots and diagrams using deep learning (PyTorch)"
+description = "Chess image to FEN: recognize chess positions from screenshots, diagrams and photos of a chessboard. Finds the board, reads all 64 squares, detects orientation."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-keywords = ["chess", "FEN", "image to FEN", "chess image to FEN", "chessboard recognition", "chess position recognition", "chess screenshot", "chess diagram", "chess vision", "lichess", "chess.com", "deep learning", "PyTorch", "CNN", "computer vision", "image recognition"]
+keywords = ["chess", "FEN", "image to FEN", "chess image to FEN", "chessboard recognition", "chess position recognition", "chess screenshot", "chess diagram", "chess vision", "lichess", "chess.com", "deep learning", "PyTorch", "ONNX", "computer vision", "image recognition"]
 authors = [
   { name = "Marco Di Ciò", email = "marcodicio.md@gmail.com" }
 ]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Intended Audience :: Education",
   "License :: OSI Approved :: MIT License",
@@ -30,18 +30,17 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 dependencies = [
-  "torch>=2.0.0",
-  "torchvision>=0.15.0",
+  "onnxruntime>=1.17",
   "numpy>=1.24.0",
-  "matplotlib>=3.7.0",
   "Pillow>=10.0.0",
-  "pandas>=2.0.0",
   "requests>=2.28.0"
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-onnx = ["onnxruntime>=1.17"]
+# training, ONNX export and .pt checkpoints (inference does not need it)
+torch = ["torch>=2.0.0", "torchvision>=0.15.0"]
+dev = ["pytest>=7"]
 
 [project.scripts]
 chessimg2pos = "chessimg2pos.cli:main"

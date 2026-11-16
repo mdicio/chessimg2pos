@@ -42,7 +42,7 @@ class BoardNet(nn.Module):
         self.cls = nn.Parameter(torch.zeros(1, 1, d))
         layer = nn.TransformerEncoderLayer(d, heads, 4 * d, dropout=0.1, batch_first=True,
                                            norm_first=True, activation="gelu")
-        self.encoder = nn.TransformerEncoder(layer, layers)
+        self.encoder = nn.TransformerEncoder(layer, layers, enable_nested_tensor=False)
         self.norm = nn.LayerNorm(d)
         self.square_head = nn.Linear(d, 13)
         self.orient_head = nn.Linear(d, 2)

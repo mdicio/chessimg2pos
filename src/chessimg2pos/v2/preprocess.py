@@ -1,6 +1,8 @@
 """Image pre-processing shared by every backend (numpy + Pillow only)."""
+import os
+
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 
 BOARD_SIZE = 256
 LOC_SIZE = 320
@@ -43,8 +45,12 @@ def refine_crop(img, box, margin=0.1):
 
 
 def load(image):
-    if isinstance(image, str):
-        image = Image.open(image)
+    """Path (str or os.PathLike) or PIL Image -> RGB PIL Image. Files are
+    turned upright from their EXIF orientation (phone photos), as browsers do."""
+    if isinstance(image, (str, os.PathLike)):
+        with Image.open(image) as f:
+            image = ImageOps.exif_transpose(f)
+            image.load()
     return image.convert("RGB")
 
 

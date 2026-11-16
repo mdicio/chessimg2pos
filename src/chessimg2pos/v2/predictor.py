@@ -53,7 +53,7 @@ class PredictorV2:
         else:
             quads = [box_to_corners(b) if len(b) == 4 and not hasattr(b[0], "__len__") else b for b in boxes]
         x = torch.from_numpy(np.stack([to_array(board_input(i, q)) for i, q in zip(imgs, quads)])).to(self.device)
-        with torch.autocast("cuda", dtype=torch.bfloat16, enabled=self.device == "cuda"):
+        with torch.autocast("cuda", dtype=torch.bfloat16, enabled=str(self.device).startswith("cuda")):
             sq, ori = self.board(x)
         sq = torch.softmax(sq.float(), -1).cpu().numpy()
         ori = torch.softmax(ori.float(), -1).cpu().numpy()

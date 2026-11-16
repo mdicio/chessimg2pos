@@ -6,14 +6,14 @@
 
 Register new adapters in ADAPTERS.
 """
-from .chessimg2pos_adapter import Chessimg2posAdapter
-from .tsoj_adapter import TsojAdapter
-from .fenshot_adapter import FenshotAdapter
+from .chessimg2pos_v1_adapter import Chessimg2posV1Adapter
 from .chessimg2pos_v2_adapter import Chessimg2posV2Adapter
+from .fenshot_adapter import FenshotAdapter
+from .tsoj_adapter import TsojAdapter
 
 ADAPTERS = {
-    "chessimg2pos": Chessimg2posAdapter,
+    "chessimg2pos": Chessimg2posV2Adapter,
+    "chessimg2pos_v1": Chessimg2posV1Adapter,
     "tsoj": TsojAdapter,
     "fenshot": FenshotAdapter,
-    "chessimg2pos_v2": Chessimg2posV2Adapter,
 }

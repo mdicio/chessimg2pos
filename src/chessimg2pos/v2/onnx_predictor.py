@@ -1,6 +1,6 @@
 """Model v2 inference with ONNX Runtime: no PyTorch needed.
 
-    pip install onnxruntime pillow numpy
+    pip install chessimg2pos      (onnxruntime, numpy, Pillow; no PyTorch)
     OnnxPredictorV2("board.onnx", "locator.onnx").predict("screenshot.png")
 """
 import numpy as np
@@ -12,7 +12,12 @@ from .preprocess import board_input, box_to_corners, corners_to_box, letterbox, 
 
 class OnnxPredictorV2:
     def __init__(self, board_path, locator_path=None, legality=True, providers=None):
-        import onnxruntime as ort
+        try:
+            import onnxruntime as ort
+        except ImportError as e:
+            raise ImportError(
+                "chessimg2pos runs on ONNX Runtime, which is not installed: pip install onnxruntime"
+            ) from e
 
         providers = providers or ort.get_available_providers()
         self.board = ort.InferenceSession(board_path, providers=providers)

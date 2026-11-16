@@ -1,5 +1,8 @@
 """Model v2 pieces that need no weights: FEN helpers, legality, pre/post-processing."""
+import os
+
 import numpy as np
+import pytest
 from PIL import Image
 
 from chessimg2pos.v2.fen import CLASSES, compress, expand, flip, from_indices, to_indices
@@ -78,3 +81,40 @@ def test_perspective_warp_matches_crop():
     skew = [[0, 0], [200, 10], [200, 200], [0, 190]]
     assert not is_axis_aligned(skew)
     assert board_input(img, skew).size == (256, 256)
+
+
+def test_load_accepts_pathlike_and_applies_exif(tmp_path):
+    from pathlib import Path
+
+    from chessimg2pos.v2.preprocess import load
+
+    img = Image.new("RGB", (40, 20), (255, 0, 0))
+    exif = Image.Exif()
+    exif[0x0112] = 6  # orientation: rotate 90 CW on display
+    p = tmp_path / "phone.jpg"
+    img.save(p, exif=exif)
+    for src in (p, str(p)):
+        out = load(src)
+        assert out.mode == "RGB" and out.size == (20, 40)
+    assert load(Image.new("L", (5, 7))).size == (5, 7)
+    assert isinstance(p, Path)
+
+
+def test_cli_reports_errors(tmp_path):
+    from chessimg2pos.cli import main
+
+    assert main(["x.png", "--weights", str(tmp_path / "missing.pt")]) == 1
+
+
+ROOT = os.path.join(os.path.dirname(__file__), "..")
+WEIGHTS = os.environ.get("CHESSIMG2POS_V2_WEIGHTS") or os.path.join(ROOT, "web", "models")
+
+
+@pytest.mark.skipif(not os.path.exists(os.path.join(WEIGHTS, "board.onnx")), reason="no local v2 ONNX weights")
+def test_predict_fen_with_real_weights():
+    from chessimg2pos import predict_fen
+
+    img = os.path.join(ROOT, "images", "chess_image.png")
+    assert predict_fen(img, weights=WEIGHTS) == "8/8/8/4p1K1/2k1P3/8/8/8"
+    r = predict_fen(img, output_type="full", weights=WEIGHTS)
+    assert r["orientation"] == "white" and r["confidence"] > 0.9

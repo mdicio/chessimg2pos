@@ -1,11 +1,12 @@
 import os
 
 
-class Chessimg2posAdapter:
-    """This library. Uses the model at $CHESSIMG2POS_MODEL if set, otherwise
-    the pretrained model for the installed version (or v0.1.6 as fallback)."""
+class Chessimg2posV1Adapter:
+    """The old tile-based model (chessimg2pos <= 0.1.6). Needs that version
+    installed in its own environment: pip install "chessimg2pos==0.1.6".
+    Uses the model at $CHESSIMG2POS_MODEL if set."""
 
-    name = "chessimg2pos"
+    name = "chessimg2pos_v1"
 
     def __init__(self, model_path=None, classifier=None):
         self.model_path = model_path or os.environ.get("CHESSIMG2POS_MODEL")
